@@ -1,0 +1,57 @@
+[
+  {
+    "name": "register organization → dashboard",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "create project",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "add task",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "abandoned form creates nothing",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "server-side date validation shown",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "invitation link generated",
+    "ok": true,
+    "detail": "http://127.0.0.1:3200/invite/MzccnvbWtE4Kk4RcBJzDFhZuH6P7Lxd-D9VPPwu3_7E"
+  },
+  {
+    "name": "sign out",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "member joins via invite",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "member has no Audit log link",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "member cannot see unassigned project",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "member has no New project button",
+    "ok": true,
+    "detail": ""
+  }
+]

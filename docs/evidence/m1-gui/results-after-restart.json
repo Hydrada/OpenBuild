@@ -1,0 +1,17 @@
+[
+  {
+    "name": "project persists after restart",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "task persists after restart",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "audit trail recorded",
+    "ok": true,
+    "detail": ""
+  }
+]

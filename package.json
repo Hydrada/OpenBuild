@@ -1,0 +1,26 @@
+{
+  "name": "openbuild",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenBuild: open-source, self-hostable construction project management",
+  "license": "MIT",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace apps/api & npm run dev --workspace apps/web",
+    "build": "npm run build --workspace apps/web && npm run build --workspace apps/api",
+    "start": "npm run start --workspace apps/api",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspace apps/api",
+    "test:e2e": "playwright test",
+    "migrate": "npm run migrate --workspace apps/api"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1"
+  }
+}
