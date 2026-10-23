@@ -167,3 +167,5 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 .gallery details summary { cursor: pointer; font-size: .8rem; }
 
 .cashflow-chart { width: 100%; max-width: 720px; height: auto; margin: .4rem 0; }
+
+.email { border-top: 1px solid #e4e4e7; padding: .6rem 0; }

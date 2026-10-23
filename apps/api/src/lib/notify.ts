@@ -11,7 +11,9 @@ export interface Notice {
 export type Notifier = (q: Queryable, userIds: (string | null | undefined)[], n: Notice) => Promise<void>;
 
 /** Optional outbound channel (email). Errors are logged by the caller's mailer and never fail the request. */
-export type Mailer = (to: string, subject: string, text: string) => Promise<void>;
+/** Optional extras for project email; notification mail uses only the first three arguments. */
+export interface MailOptions { cc?: string[]; replyTo?: string; attachments?: { filename: string; content: Buffer }[] }
+export type Mailer = (to: string, subject: string, text: string, options?: MailOptions) => Promise<void>;
 
 /**
  * In-app notifications, written in the caller's transaction. The actor is never notified about their own action.

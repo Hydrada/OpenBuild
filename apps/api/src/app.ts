@@ -32,6 +32,7 @@ import { permissionTemplateRoutes } from "./routes/permission-templates.js";
 import { formRoutes } from "./routes/forms.js";
 import { estimateRoutes } from "./routes/estimates.js";
 import { cashFlowRoutes } from "./routes/cashflow.js";
+import { emailRoutes } from "./routes/emails.js";
 import { bimRoutes } from "./routes/bim.js";
 import { collabRoutes } from "./routes/collab.js";
 import { documentRoutes } from "./routes/documents.js";
@@ -113,7 +114,7 @@ export async function buildApp(config: AppConfig) {
     if (!req.url.startsWith("/api/")) return;
     const bearer = /^Bearer (ob_[\w-]+)$/.exec(req.headers.authorization ?? "")?.[1];
     // Cookie-authenticated writes must prove same-origin script (CSRF). API keys and tool links carry no cookie.
-    const tokenAuthenticated = !!bearer || req.url.startsWith("/api/tool/") || req.url.startsWith("/api/bids/") || req.url.startsWith("/api/auth/saml/acs");
+    const tokenAuthenticated = !!bearer || req.url.startsWith("/api/tool/") || req.url.startsWith("/api/bids/") || req.url.startsWith("/api/auth/saml/acs") || req.url.startsWith("/api/inbound-email/");
     if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !req.headers[CSRF_HEADER] && !tokenAuthenticated) {
       return reply.code(403).send({ error: "Missing CSRF header" });
     }
@@ -198,6 +199,7 @@ export async function buildApp(config: AppConfig) {
   await app.register(formRoutes(config), { prefix: "/api" });
   await app.register(estimateRoutes(config), { prefix: "/api" });
   await app.register(cashFlowRoutes(config), { prefix: "/api" });
+  await app.register(emailRoutes(config), { prefix: "/api" });
   await app.register(oidcRoutes(config), { prefix: "/api" });
   await app.register(samlRoutes(config), { prefix: "/api" });
 

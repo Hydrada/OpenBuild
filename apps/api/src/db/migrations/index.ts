@@ -1363,4 +1363,32 @@ ALTER TABLE budget_lines ADD COLUMN spread_curve text NOT NULL DEFAULT 'linear' 
 ALTER TABLE budget_lines ADD CONSTRAINT spread_order CHECK (spread_start IS NULL OR spread_end IS NULL OR spread_end >= spread_start);
 `,
   },
+  {
+    id: "0032_project_emails",
+    sql: /* sql */ `
+-- Project emails: outbound mail sent from a project, inbound replies, threads.
+CREATE TABLE project_emails (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id    uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  thread_number int NOT NULL,
+  direction     text NOT NULL CHECK (direction IN ('outbound','inbound')),
+  from_address  text NOT NULL,
+  to_addresses  text[] NOT NULL DEFAULT '{}',
+  cc_addresses  text[] NOT NULL DEFAULT '{}',
+  subject       text NOT NULL,
+  body          text NOT NULL,
+  status        text NOT NULL CHECK (status IN ('sent','failed','logged','received')),
+  error         text,
+  sent_by       uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX project_emails_thread ON project_emails (project_id, thread_number, created_at);
+CREATE TABLE project_email_files (
+  email_id uuid NOT NULL REFERENCES project_emails(id) ON DELETE CASCADE,
+  file_id  uuid NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  PRIMARY KEY (email_id, file_id)
+);
+ALTER TABLE projects ADD COLUMN inbound_email_token_hash text;
+`,
+  },
 ];

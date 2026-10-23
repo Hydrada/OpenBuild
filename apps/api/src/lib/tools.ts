@@ -27,6 +27,7 @@ export const TOOLS = {
   bidding: "Bidding",
   forms: "Forms",
   estimating: "Estimating",
+  emails: "Emails",
 } as const;
 export type Tool = keyof typeof TOOLS;
 export type ToolLevel = "none" | "read" | "standard" | "admin";
@@ -58,6 +59,7 @@ const SEGMENTS: Record<string, Tool> = {
   "bid-packages": "bidding",
   forms: "forms",
   estimates: "estimating",
+  emails: "emails",
 };
 
 export function toolForRoute(url: string | undefined): Tool | null {

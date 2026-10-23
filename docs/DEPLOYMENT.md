@@ -78,3 +78,10 @@ With Docker Compose you can also use `pg_dump` on the `db` service plus a copy o
 ## Upgrades
 
 Migrations run automatically at startup (`schema_migrations` records what has been applied). They are append-only; take a backup before upgrading.
+
+## Inbound project email (optional)
+
+On a project's Emails tool, a manager chooses **Set up inbound email** to get a one-time secret URL
+(`/api/inbound-email/<token>`). Configure your mail provider's inbound webhook (Mailgun routes, Postmark inbound,
+SendGrid Inbound Parse via a small mapping) to POST JSON `{ "from", "to", "cc", "subject", "text" }` there. Replies
+whose subject keeps the `[#E-n]` tag join thread n. Setting it up again replaces the secret.

@@ -16,6 +16,7 @@ import { MyContractsTool } from "./tools/subcontract";
 import { FormsTool } from "./tools/forms";
 import { EstimatesTool } from "./tools/estimates";
 import { CashFlowTool } from "./tools/cashflow";
+import { EmailsTool } from "./tools/emails";
 import { ActionPlansTool, CoordinationIssuesTool, WarrantiesTool } from "./tools/closeout";
 import { CorrespondenceTool, DirectCostsTool, EquipmentTool, TmTicketsTool } from "./tools/project-tools";
 import { BudgetTool, ChangeEventsTool, ChangeOrdersTool, ContractsTool, InvoicesTool } from "./tools/financials";
@@ -31,6 +32,7 @@ const TOOLS: Tool[] = [
   { id: "meetings", label: "Meetings", group: "Project", render: (p) => <MeetingsTool project={p} /> },
   { id: "correspondence", label: "Correspondence", group: "Project", external: true, render: (p) => <CorrespondenceTool project={p} /> },
   { id: "action-plans", label: "Action plans", group: "Project", external: true, render: (p) => <ActionPlansTool project={p} /> },
+  { id: "emails", label: "Emails", group: "Project", render: (p) => <EmailsTool project={p} /> },
   { id: "team", label: "Team", group: "Project", render: (p) => <Team project={p} /> },
   { id: "activity", label: "Activity", group: "Project", render: (p) => <Activity projectId={p.id} /> },
   { id: "drawings", label: "Drawings", group: "Documents", external: true, render: (p) => <DrawingsTool project={p} /> },
@@ -69,7 +71,7 @@ const TEMPLATE_TOOL: Record<string, string> = {
   schedule: "schedule", lookahead: "schedule", meetings: "meetings", correspondence: "correspondence", "action-plans": "action_plans", warranties: "action_plans",
   drawings: "drawings", documents: "documents", models: "models", "coordination-issues": "models", specs: "specs", rfis: "rfis", submittals: "submittals",
   "daily-log": "daily_log", inspections: "inspections", punch: "punch", observations: "observations", incidents: "incidents", photos: "photos",
-  timesheets: "timesheets", "tm-tickets": "tm_tickets", forms: "forms", estimates: "estimating", equipment: "equipment", bidding: "bidding", budget: "budget", "cash-flow": "budget", "direct-costs": "budget",
+  timesheets: "timesheets", "tm-tickets": "tm_tickets", forms: "forms", estimates: "estimating", emails: "emails", equipment: "equipment", bidding: "bidding", budget: "budget", "cash-flow": "budget", "direct-costs": "budget",
   contracts: "commitments", "change-events": "commitments", "change-orders": "commitments", invoices: "commitments", "my-contracts": "commitments",
 };
 
