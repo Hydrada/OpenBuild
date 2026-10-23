@@ -71,7 +71,7 @@ export function BidPackagePage({ id }: { id: string }) {
       <section className="card" aria-label="Bid leveling">
         <h2>Bid leveling {b.low_bid && <span className="muted small">low bid <Money value={b.low_bid} /></span>}</h2>
         <DataTable rows={b.bidders} empty="No bidders invited yet." caption="Bidders" columns={[
-          { label: "Company", render: (x: any) => x.company },
+          { label: "Company", render: (x: any) => <>{x.company}{x.prequal_status === "approved" && <span className="badge badge-approved" title="Prequalified">Prequalified</span>}</> },
           { label: "Status", render: (x: any) => <Badge value={x.status} /> },
           { label: "Bid", render: (x: any) => <Money value={x.amount} /> },
           { label: "Over low", render: (x: any) => x.over_low === null ? "—" : <><Money value={x.over_low} /> <span className="muted small">({x.over_low_percent}%)</span></> },
@@ -82,6 +82,7 @@ export function BidPackagePage({ id }: { id: string }) {
           ) },
         ]} />
       </section>
+      {manage && b.status === "open" && <DirectoryInvite orgId={b.org_id} packageId={b.id} invited={b.bidders.map((x: any) => x.email)} onInvited={(path) => { setLink(`${location.origin}${path}`); r.reload(); }} />}
       {manage && b.status === "open" && (
         <Form ariaLabel="Invite bidder" submitLabel="Invite bidder" resetOnSuccess
           fields={[{ name: "company", label: "Company", required: true }, { name: "email", label: "Estimator email", type: "email", required: true }]}
@@ -90,6 +91,17 @@ export function BidPackagePage({ id }: { id: string }) {
         </Form>
       )}
     </>
+  );
+}
+
+function DirectoryInvite({ orgId, packageId, invited, onInvited }: { orgId: string; packageId: string; invited: string[]; onInvited: (path: string) => void }) {
+  const dir = useApi<any[]>(`/orgs/${orgId}/bidder-companies`);
+  const options = (dir.data ?? []).filter((c) => c.prequal_status === "approved" && !invited.includes(c.email)).map((c) => ({ value: c.id, label: `${c.name}${c.trade ? ` (${c.trade})` : ""}` }));
+  if (!options.length) return null;
+  return (
+    <Form ariaLabel="Invite from directory" submitLabel="Invite prequalified bidders" resetOnSuccess
+      fields={[{ name: "companyIds", label: "Prequalified companies", type: "multiselect", required: true, options }]}
+      onSubmit={async (v) => { let path = ""; for (const companyId of v.companyIds as string[]) path = (await api("POST", `/bid-packages/${packageId}/bidders`, { companyId })).bidPath; onInvited(path); }} />
   );
 }
 

@@ -3,6 +3,7 @@ import { api, ApiError, type Me } from "./api";
 import { Link } from "./components/ui";
 import { useOutbox } from "./offline";
 import { AuditPage } from "./pages/Audit";
+import { BiddersPage } from "./pages/Bidders";
 import { AuthPage } from "./pages/Auth";
 import { Dashboard } from "./pages/Dashboard";
 import { InvitePage } from "./pages/Invite";
@@ -120,13 +121,14 @@ export function App() {
   else if (path === "/team") page = <TeamPage orgId={org.id} myRole={org.role} myId={me.user.id} />;
   else if (path === "/audit" && isAdmin) page = <AuditPage orgId={org.id} />;
   else if (path === "/settings" && isAdmin) page = <OrgSettingsPage orgId={org.id} />;
+  else if (path === "/bidders") page = <BiddersPage orgId={org.id} canReview={isAdmin} />;
   else if (path === "/notifications") page = <NotificationsPage onRead={loadUnread} />;
   else if (path === "/my-work") page = <MyWorkPage />;
   else if (path === "/account") page = <AccountPage me={me} onChange={loadMe} />;
   else page = <Dashboard key={org.id} orgId={org.id} />;
 
   const nav: [string, string][] = [
-    ["/", "Dashboard"], ["/my-work", "My work"], ["/projects", "Projects"], ["/team", "Team"],
+    ["/", "Dashboard"], ["/my-work", "My work"], ["/projects", "Projects"], ["/team", "Team"], ["/bidders", "Bidders"],
     ...(isAdmin ? ([["/audit", "Audit log"], ["/settings", "Settings"]] as [string, string][]) : []),
   ];
   const active = (to: string) => (to === "/" ? path === "/" : path.startsWith(to));

@@ -12,7 +12,7 @@ import { assertProjectMember, loadInProject, toSet } from "../lib/records.js";
 type P = { Params: { projectId: string } };
 type Id = { Params: { id: string } };
 
-const link = z.object({ id: z.uuid(), lagDays: z.number().int().min(-3650).max(3650).default(0) });
+const link = z.object({ id: z.uuid(), lagDays: z.number().int().min(-3650).max(3650).default(0), type: z.enum(["FS", "SS", "FF", "SF"]).default("FS") });
 const input = z.object({
   name: z.string().trim().min(1).max(300),
   startDate: z.iso.date(),
@@ -28,7 +28,7 @@ const COLS = { name: "name", startDate: "start_date", endDate: "end_date", isMil
 
 function predecessorsOf(b: z.infer<typeof input> | Partial<z.infer<typeof input>>) {
   if (b.predecessors) return b.predecessors;
-  if (b.predecessorId !== undefined) return b.predecessorId ? [{ id: b.predecessorId, lagDays: 0 }] : [];
+  if (b.predecessorId !== undefined) return b.predecessorId ? [{ id: b.predecessorId, lagDays: 0, type: "FS" as const }] : [];
   return undefined;
 }
 
@@ -37,7 +37,7 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
 
   async function linksFor(q: Queryable, projectId: string) {
     return q.query<CpmLink>(
-      `SELECT l.successor_id, l.predecessor_id, l.lag_days FROM schedule_links l JOIN schedule_items s ON s.id = l.successor_id WHERE s.project_id = $1`,
+      `SELECT l.successor_id, l.predecessor_id, l.lag_days, l.link_type FROM schedule_links l JOIN schedule_items s ON s.id = l.successor_id WHERE s.project_id = $1`,
       [projectId],
     );
   }
@@ -58,8 +58,18 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     const byId = new Map(rows.map((r) => [r.id, r]));
     const today = new Date().toISOString().slice(0, 10);
     return rows.map((r) => {
-      const preds = links.filter((l) => l.successor_id === r.id).map((l) => ({ id: l.predecessor_id, name: byId.get(l.predecessor_id)!.name, lagDays: l.lag_days }));
-      const conflict = links.some((l) => l.successor_id === r.id && day(r.start_date) <= day(byId.get(l.predecessor_id)!.end_date) + l.lag_days);
+      const preds = links.filter((l) => l.successor_id === r.id).map((l) => ({ id: l.predecessor_id, name: byId.get(l.predecessor_id)!.name, lagDays: l.lag_days, type: l.link_type ?? "FS" }));
+      // Planned dates that violate a link (the CPM early dates show where the activity can really start).
+      const conflict = links.some((l) => {
+        if (l.successor_id !== r.id) return false;
+        const p = byId.get(l.predecessor_id)!;
+        switch (l.link_type ?? "FS") {
+          case "SS": return day(r.start_date) < day(p.start_date) + l.lag_days;
+          case "FF": return day(r.end_date) < day(p.end_date) + l.lag_days;
+          case "SF": return day(r.end_date) < day(p.start_date) + l.lag_days;
+          default: return day(r.start_date) <= day(p.end_date) + l.lag_days;
+        }
+      });
       return {
         ...r, predecessors: preds,
         // Single-link fields kept for older clients.
@@ -69,13 +79,13 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     });
   });
 
-  async function setLinks(q: Queryable, projectId: string, selfId: string, preds: { id: string; lagDays: number }[]) {
+  async function setLinks(q: Queryable, projectId: string, selfId: string, preds: { id: string; lagDays: number; type?: string }[]) {
     for (const p of preds) {
       if (p.id === selfId) throw new HttpError(400, "An item cannot depend on itself");
       if (!(await q.query("SELECT 1 FROM schedule_items WHERE id = $1 AND project_id = $2", [p.id, projectId])).length) throw new HttpError(400, "Predecessor not found in this project");
     }
     await q.query("DELETE FROM schedule_links WHERE successor_id = $1", [selfId]);
-    for (const p of preds) await q.query("INSERT INTO schedule_links (successor_id, predecessor_id, lag_days) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [selfId, p.id, p.lagDays]);
+    for (const p of preds) await q.query("INSERT INTO schedule_links (successor_id, predecessor_id, lag_days, link_type) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING", [selfId, p.id, p.lagDays, p.type ?? "FS"]);
     const ids = (await q.query<{ id: string }>("SELECT id FROM schedule_items WHERE project_id = $1", [projectId])).map((r) => r.id);
     try {
       assertAcyclic(ids, await linksFor(q, projectId));
@@ -170,9 +180,9 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
       }
       let links = 0;
       for (const t of tasks) {
-        const preds = t.predecessors.filter((p) => idByUid.has(p.uid)).map((p) => ({ id: idByUid.get(p.uid)!, lagDays: p.lagDays }));
+        const preds = t.predecessors.filter((p) => idByUid.has(p.uid)).map((p) => ({ id: idByUid.get(p.uid)!, lagDays: p.lagDays, type: p.type }));
         await q.query("DELETE FROM schedule_links WHERE successor_id = $1", [idByUid.get(t.uid)]);
-        for (const p of preds) await q.query("INSERT INTO schedule_links (successor_id, predecessor_id, lag_days) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [idByUid.get(t.uid), p.id, p.lagDays]);
+        for (const p of preds) await q.query("INSERT INTO schedule_links (successor_id, predecessor_id, lag_days, link_type) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING", [idByUid.get(t.uid), p.id, p.lagDays, p.type]);
         links += preds.length;
       }
       const ids = (await q.query<{ id: string }>("SELECT id FROM schedule_items WHERE project_id = $1", [project.id])).map((r) => r.id);

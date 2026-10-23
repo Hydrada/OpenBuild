@@ -45,3 +45,24 @@ test("bid package: invite, bidder submits via private link, level and award", as
   await bidder.reload();
   await expect(bidder.getByText("Bidding on this package is closed.")).toBeVisible();
 });
+
+test("bidder directory: prequalify a company and invite it to a package", async ({ browser }) => {
+  const w = await world(browser);
+  const { owner } = w;
+  await owner.goto("/bidders");
+  await owner.getByRole("button", { name: "Add company" }).click();
+  await owner.getByLabel("Company", { exact: true }).fill("Bravo Coatings");
+  await owner.getByLabel("Trade").fill("Painting");
+  await owner.getByLabel("Estimating email").fill("bids@bravo.test");
+  const nextYear = new Date(Date.now() + 365 * 86_400_000).toLocaleDateString("en-CA");
+  await owner.getByLabel("Insurance expires").fill(nextYear);
+  await owner.getByRole("button", { name: "Add company", exact: true }).click();
+  await owner.getByRole("row", { name: /Bravo Coatings/ }).getByRole("button", { name: "Approve" }).click();
+  await expect(owner.getByRole("row", { name: /Bravo Coatings/ })).toContainText("Approved");
+
+  const pkg = await api(owner).post(`/projects/${w.projectId}/bid-packages`, { title: "Painting", dueAt: new Date(Date.now() + 7 * 86_400_000).toISOString() });
+  await owner.goto(`/bid-packages/${pkg.id}`);
+  await owner.getByLabel("Prequalified companies").selectOption({ label: "Bravo Coatings (Painting)" });
+  await owner.getByRole("button", { name: "Invite prequalified bidders" }).click();
+  await expect(owner.getByRole("row", { name: /Bravo Coatings/ })).toContainText("Prequalified");
+});

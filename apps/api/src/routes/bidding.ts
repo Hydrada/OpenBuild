@@ -4,7 +4,7 @@ import { type AppConfig, requireUser } from "../app.js";
 import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { D, fmt, nonNegativeMoney } from "../lib/money.js";
-import { requireProject } from "../lib/permissions.js";
+import { isUuid, requireOrgRole, requireProject } from "../lib/permissions.js";
 import { loadInProject, nextNumber } from "../lib/records.js";
 import { newToken, sha256 } from "../lib/security.js";
 
@@ -65,8 +65,9 @@ export const biddingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
       [row.id],
     );
     const bidders = await db.query<{ id: string; status: string; amount: string | null }>(
-      `SELECT id, company, email, status, amount::text, notes, submitted_at FROM bidders WHERE package_id = $1
-        ORDER BY (status = 'submitted') DESC, amount NULLS LAST, company`,
+      `SELECT x.id, x.company, x.email, x.status, x.amount::text, x.notes, x.submitted_at, c.prequal_status
+         FROM bidders x LEFT JOIN bidder_companies c ON c.id = x.company_id WHERE x.package_id = $1
+        ORDER BY (x.status = 'submitted') DESC, x.amount NULLS LAST, x.company`,
       [row.id],
     );
     const low = bidders.filter((x) => x.status === "submitted" && x.amount !== null).map((x) => new D(x.amount!));
@@ -77,6 +78,7 @@ export const biddingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
     );
     return {
       ...pkg,
+      org_id: access.project.org_id,
       files,
       bidders: bidders.map((x) => ({
         ...x,
@@ -92,17 +94,33 @@ export const biddingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ id: string; project_id: string; status: string; title: string; due_at: string }>(db, "bid_packages", req.params.id, user.id, "record.manage", "Bid package");
     if (row.status !== "open") throw new HttpError(409, "The package is not open for bidding");
-    const b = z.object({ company: z.string().trim().min(1).max(200), email: z.string().trim().toLowerCase().pipe(z.email()) }).parse(req.body);
+    const b = z.union([
+      z.object({ companyId: z.uuid() }),
+      z.object({ company: z.string().trim().min(1).max(200), email: z.string().trim().toLowerCase().pipe(z.email()) }),
+    ]).parse(req.body);
+    let company: string, email: string, companyId: string | null = null;
+    if ("companyId" in b) {
+      // From the bidder directory: only prequalified companies may be invited.
+      const [c] = await db.query<{ name: string; email: string; prequal_status: string }>(
+        "SELECT c.name, c.email, c.prequal_status FROM bidder_companies c WHERE c.id = $1 AND c.org_id = $2", [b.companyId, access.project.org_id],
+      );
+      if (!c) throw new HttpError(404, "Company not found");
+      if (c.prequal_status !== "approved") throw new HttpError(400, `${c.name} is not prequalified (${c.prequal_status})`);
+      ({ name: company, email } = c);
+      companyId = b.companyId;
+    } else {
+      ({ company, email } = b);
+    }
     const { token, hash } = newToken();
     const bidder = await db.tx(async (q) => {
-      const [x] = await q.query<{ id: string }>(`INSERT INTO bidders (package_id, company, email, token_hash) VALUES ($1, $2, $3, $4) RETURNING id`, [row.id, b.company, b.email, hash]);
-      await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: "bid.invite", entityType: "bid_package", entityId: row.id, detail: b });
+      const [x] = await q.query<{ id: string }>(`INSERT INTO bidders (package_id, company, email, token_hash, company_id) VALUES ($1, $2, $3, $4, $5) RETURNING id`, [row.id, company, email, hash, companyId]);
+      await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: "bid.invite", entityType: "bid_package", entityId: row.id, detail: { company, email, companyId } });
       return x!;
     });
     const bidPath = `/bid/${token}`;
     let emailSent = false;
     if (config.mailer && config.baseUrl) {
-      emailSent = await config.mailer(b.email, `Invitation to bid: ${row.title}`, `${b.company} is invited to bid on "${row.title}".\n\nSubmit by ${new Date(row.due_at).toUTCString()}: ${config.baseUrl}${bidPath}`).then(() => true, () => false);
+      emailSent = await config.mailer(email, `Invitation to bid: ${row.title}`, `${company} is invited to bid on "${row.title}".\n\nSubmit by ${new Date(row.due_at).toUTCString()}: ${config.baseUrl}${bidPath}`).then(() => true, () => false);
     }
     return reply.code(201).send({ id: bidder.id, bidPath, emailSent });
   });
@@ -159,6 +177,62 @@ export const biddingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
       await q.query("UPDATE bid_packages SET status = 'awarded', awarded_bidder_id = $2, contract_id = $3 WHERE id = $1", [row.id, bidder.id, k!.id]);
       await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: "bid_package.award", entityType: "bid_package", entityId: row.id, detail: { company: bidder.company, amount: bidder.amount, contractId: k!.id } });
       return { ok: true, contractId: k!.id };
+    });
+  });
+
+  // ---------- Bidder directory and prequalification (company level) ----------
+
+  type O = { Params: { orgId: string } };
+  const companyInput = z.object({
+    name: z.string().trim().min(1).max(200),
+    trade: z.string().trim().max(100).nullable().optional(),
+    email: z.string().trim().toLowerCase().pipe(z.email()),
+    bondingLimit: nonNegativeMoney.nullable().optional(),
+    insuranceExpires: z.iso.date().nullable().optional(),
+    emr: z.union([z.number(), z.string()]).transform(String).pipe(z.string().regex(/^\d{1,2}(\.\d{1,2})?$/, "EMR like 0.85")).nullable().optional(),
+    notes: z.string().trim().max(5000).nullable().optional(),
+  });
+
+  app.get<O & { Querystring: { trade?: string } }>("/orgs/:orgId/bidder-companies", async (req) => {
+    const user = requireUser(req);
+    if (!isUuid(req.params.orgId)) throw new HttpError(404, "Organization not found");
+    await requireOrgRole(db, user.id, req.params.orgId, ["owner", "admin", "member"]);
+    return db.query(
+      `SELECT c.id, c.name, c.trade, c.email, c.prequal_status, c.bonding_limit::text, c.insurance_expires, c.emr::text, c.notes, c.reviewed_at,
+              (c.insurance_expires IS NOT NULL AND c.insurance_expires < current_date) AS insurance_expired, r.name AS reviewed_by_name
+         FROM bidder_companies c LEFT JOIN users r ON r.id = c.reviewed_by
+        WHERE c.org_id = $1 AND ($2::text IS NULL OR c.trade ILIKE $2) ORDER BY c.name`,
+      [req.params.orgId, req.query.trade ? `%${req.query.trade}%` : null],
+    );
+  });
+
+  app.post<O>("/orgs/:orgId/bidder-companies", async (req, reply) => {
+    const user = requireUser(req);
+    if (!isUuid(req.params.orgId)) throw new HttpError(404, "Organization not found");
+    await requireOrgRole(db, user.id, req.params.orgId, ["owner", "admin"]);
+    const b = companyInput.parse(req.body);
+    if ((await db.query("SELECT 1 FROM bidder_companies WHERE org_id = $1 AND lower(name) = lower($2)", [req.params.orgId, b.name])).length) throw new HttpError(409, "That company is already in the directory");
+    const [c] = await db.query(
+      `INSERT INTO bidder_companies (org_id, name, trade, email, bonding_limit, insurance_expires, emr, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [req.params.orgId, b.name, b.trade ?? null, b.email, b.bondingLimit ?? null, b.insuranceExpires ?? null, b.emr ?? null, b.notes ?? null],
+    );
+    await audit(db, { orgId: req.params.orgId, actorId: user.id, action: "bidder_company.create", entityType: "bidder_company", entityId: (c as { id: string }).id, detail: { name: b.name } });
+    return reply.code(201).send(c);
+  });
+
+  /** Prequalification decision; approving requires current insurance on file. */
+  app.post<O & { Params: { orgId: string; id: string } }>("/orgs/:orgId/bidder-companies/:id/prequal", async (req) => {
+    const user = requireUser(req);
+    if (!isUuid(req.params.orgId) || !isUuid(req.params.id)) throw new HttpError(404, "Company not found");
+    await requireOrgRole(db, user.id, req.params.orgId, ["owner", "admin"]);
+    const b = z.object({ status: z.enum(["approved", "rejected", "pending"]), notes: z.string().trim().max(5000).optional() }).parse(req.body);
+    return db.tx(async (q) => {
+      const [c] = await q.query<{ insurance_expires: string | null }>("SELECT insurance_expires FROM bidder_companies WHERE id = $1 AND org_id = $2", [req.params.id, req.params.orgId]);
+      if (!c) throw new HttpError(404, "Company not found");
+      if (b.status === "approved" && (!c.insurance_expires || c.insurance_expires < new Date().toISOString().slice(0, 10))) throw new HttpError(400, "Record a current insurance expiry date before approving");
+      await q.query("UPDATE bidder_companies SET prequal_status = $3, notes = coalesce($4, notes), reviewed_by = $5, reviewed_at = now() WHERE id = $1 AND org_id = $2", [req.params.id, req.params.orgId, b.status, b.notes ?? null, user.id]);
+      await audit(q, { orgId: req.params.orgId, actorId: user.id, action: `bidder_company.${b.status}`, entityType: "bidder_company", entityId: req.params.id, detail: b });
+      return { ok: true };
     });
   });
 

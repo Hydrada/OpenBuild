@@ -827,4 +827,29 @@ CREATE TABLE bid_package_files (
 );
 `,
   },
+  {
+    id: "0014_link_types_prequal",
+    sql: /* sql */ `
+ALTER TABLE schedule_links ADD COLUMN link_type text NOT NULL DEFAULT 'FS' CHECK (link_type IN ('FS','SS','FF','SF'));
+
+-- Bidder directory with prequalification, reused across bid packages.
+CREATE TABLE bidder_companies (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id       uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name         text NOT NULL,
+  trade        text,
+  email        text NOT NULL,
+  prequal_status text NOT NULL DEFAULT 'pending' CHECK (prequal_status IN ('pending','approved','rejected')),
+  bonding_limit numeric(18,2),
+  insurance_expires date,
+  emr          numeric(4,2),
+  notes        text,
+  reviewed_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at  timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (org_id, name)
+);
+ALTER TABLE bidders ADD COLUMN company_id uuid REFERENCES bidder_companies(id) ON DELETE SET NULL;
+`,
+  },
 ];

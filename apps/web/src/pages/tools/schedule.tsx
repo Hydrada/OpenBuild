@@ -7,7 +7,7 @@ import type { ProjectInfo } from "../Project";
 
 interface Item {
   id: string; name: string; start_date: string; end_date: string; is_milestone: boolean; percent_complete: number;
-  predecessor_id: string | null; predecessor_name: string | null; predecessors: { id: string; name: string; lagDays: number }[]; assignee_id: string | null; assignee_name: string | null;
+  predecessor_id: string | null; predecessor_name: string | null; predecessors: { id: string; name: string; lagDays: number; type: string }[]; assignee_id: string | null; assignee_name: string | null;
   late: boolean; dependency_conflict: boolean; early_start: string; early_finish: string; total_float: number; critical: boolean;
 }
 
@@ -28,12 +28,16 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
     { name: "endDate", label: "Finish (blank for milestone)", type: "date" as const },
     { name: "percentComplete", label: "% complete", type: "number" as const, min: "0", max: "100", step: "1" },
     { name: "predecessorIds", label: "Depends on (finish-to-start; Ctrl/Cmd-click for several)", type: "multiselect" as const, options: predOptions.filter((o) => o.value !== excludeId) },
+    { name: "linkType", label: "Link type", type: "select" as const, required: true, options: [
+      { value: "FS", label: "Finish → start (FS)" }, { value: "SS", label: "Start → start (SS)" },
+      { value: "FF", label: "Finish → finish (FF)" }, { value: "SF", label: "Start → finish (SF)" }] },
+    { name: "lagDays", label: "Lag (days)", type: "number" as const, step: "1" },
     { name: "assigneeId", label: "Responsible", type: "select" as const, options },
     { name: "isMilestone", label: "Milestone", type: "checkbox" as const },
   ];
   const body = (v: Record<string, any>) => ({
     name: v.name, startDate: v.startDate, endDate: v.endDate || undefined, isMilestone: !!v.isMilestone,
-    percentComplete: v.percentComplete === "" ? 0 : Number(v.percentComplete), predecessors: (v.predecessorIds as string[]).map((id) => ({ id })), assigneeId: v.assigneeId || null,
+    percentComplete: v.percentComplete === "" ? 0 : Number(v.percentComplete), predecessors: (v.predecessorIds as string[]).map((id) => ({ id, type: v.linkType || "FS", lagDays: Number(v.lagDays) || 0 })), assigneeId: v.assigneeId || null,
   });
 
   let chart = null;
@@ -82,7 +86,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
         {writable && (
           <Creator label="Add activity">
             {(close) => (
-              <Form ariaLabel="New schedule activity" submitLabel="Add to schedule" onCancel={close} fields={fields()}
+              <Form ariaLabel="New schedule activity" submitLabel="Add to schedule" onCancel={close} fields={fields()} initial={{ linkType: "FS" }}
                 onSubmit={async (v) => { await api("POST", `/projects/${project.id}/schedule`, body(v)); close(); list.reload(); }} />
             )}
           </Creator>
@@ -102,7 +106,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                   {items.map((i) => editing === i.id ? (
                     <tr key={i.id}><td colSpan={writable ? 9 : 8}>
                       <Form ariaLabel={`Edit ${i.name}`} submitLabel="Save" className="flat" onCancel={() => setEditing(null)} fields={fields(i.id)}
-                        initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorIds: i.predecessors.map((p) => p.id), assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
+                        initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorIds: i.predecessors.map((p) => p.id), linkType: i.predecessors[0]?.type ?? "FS", lagDays: String(i.predecessors[0]?.lagDays ?? 0), assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
                         onSubmit={async (v) => { await api("PATCH", `/schedule/${i.id}`, body(v)); setEditing(null); list.reload(); }} />
                     </td></tr>
                   ) : (
@@ -112,7 +116,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                       <td>{i.is_milestone ? "—" : fmtDate(i.end_date)}</td>
                       <td>{i.percent_complete}</td>
                       <td>{i.total_float}</td>
-                      <td>{i.predecessors.length ? i.predecessors.map((p) => `${p.name}${p.lagDays ? ` +${p.lagDays}d` : ""}`).join(", ") : "—"}</td>
+                      <td>{i.predecessors.length ? i.predecessors.map((p) => `${p.name} (${p.type}${p.lagDays ? ` ${p.lagDays > 0 ? "+" : ""}${p.lagDays}d` : ""})`).join(", ") : "—"}</td>
                       <td>{i.assignee_name ?? "—"}</td>
                       <td>
                         {i.critical && <span className="badge badge-high" title="Zero float: any delay moves the project finish">Critical</span>}{" "}
