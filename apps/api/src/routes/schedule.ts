@@ -3,6 +3,7 @@ import { z } from "zod";
 import { type AppConfig, requireUser } from "../app.js";
 import type { Queryable } from "../db/db.js";
 import { audit } from "../lib/audit.js";
+import { criticalPath, type CpmInput } from "../lib/cpm.js";
 import { HttpError } from "../lib/errors.js";
 import { requireProject } from "../lib/permissions.js";
 import { assertProjectMember, loadInProject, toSet } from "../lib/records.js";
@@ -28,7 +29,7 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
   app.get<P>("/projects/:projectId/schedule", async (req) => {
     const user = requireUser(req);
     await requireProject(db, user.id, req.params.projectId, "read.full");
-    return db.query(
+    const rows = await db.query<CpmInput & Record<string, unknown>>(
       `SELECT s.id, s.name, s.start_date, s.end_date, s.is_milestone, s.percent_complete, s.predecessor_id, s.assignee_id,
               u.name AS assignee_name, p.name AS predecessor_name,
               (s.percent_complete < 100 AND s.end_date < current_date) AS late,
@@ -37,6 +38,9 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
         WHERE s.project_id = $1 ORDER BY s.start_date, s.end_date, s.name`,
       [req.params.projectId],
     );
+    if (!rows.length) return rows;
+    const cpm = criticalPath(rows);
+    return rows.map((r) => ({ ...r, ...cpm.get(r.id)! }));
   });
 
   async function validate(q: Queryable, projectId: string, selfId: string | null, b: { predecessorId?: string | null; assigneeId?: string | null }) {

@@ -34,6 +34,9 @@ test("schedule: activities, milestone, dependency conflict, dashboard milestone"
   await owner.getByLabel("Start", { exact: true }).fill("2026-02-16");
   await owner.getByRole("button", { name: "Save" }).click();
   await expect(owner.getByText("Dependency conflict")).toHaveCount(0);
+  // Top out finishes last, so it is critical; Steel erection (March) has float.
+  await expect(owner.getByRole("row", { name: /Top out/ }).getByText("Critical")).toBeVisible();
+  await expect(owner.getByRole("row", { name: /Steel erection/ }).getByText("Critical")).toHaveCount(0);
 
   await owner.getByRole("link", { name: "Dashboard" }).click();
   await expect(owner.getByRole("link", { name: "Top out" })).toBeVisible();

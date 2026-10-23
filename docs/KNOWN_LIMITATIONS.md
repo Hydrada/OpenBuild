@@ -1,6 +1,6 @@
 # Known limitations (0.2.0, 2026-10-22)
 
-- **Not Procore parity.** See FEATURE_PARITY.md for what is and is not built (no bidding, BIM or critical-path scheduling).
+- **Not Procore parity.** See FEATURE_PARITY.md for what is and is not built (no bidding or BIM; scheduling supports one finish-to-start predecessor per activity and no P6/MS Project import).
 - **No SSO (SAML/OIDC).** Password + optional TOTP two-factor with 10 single-use recovery codes; owners/admins can reset a member's second factor.
 - **Login rate limiting is in-memory**, per process — run one app instance per database.
 - **S3 storage** is supported (AWS S3, MinIO, R2, Backblaze) and tested against an S3-compatible test server, not yet against a live AWS account. With S3, the backup CLI copies the database only; use bucket versioning/replication for files.

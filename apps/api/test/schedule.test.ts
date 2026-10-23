@@ -70,3 +70,28 @@ describe("schedule and milestones", () => {
     }
   });
 });
+
+describe("critical path", () => {
+  it("computes early/late dates, float and the critical chain", async () => {
+    const { criticalPath } = await import("../src/lib/cpm.js");
+    // A (5 days) -> B (3 days); C (2 days) parallel, no dependency
+    const r = criticalPath([
+      { id: "A", start_date: "2026-01-01", end_date: "2026-01-05", predecessor_id: null },
+      { id: "B", start_date: "2026-01-02", end_date: "2026-01-04", predecessor_id: "A" }, // planned too early; pushed to 01-06
+      { id: "C", start_date: "2026-01-01", end_date: "2026-01-02", predecessor_id: null },
+    ]);
+    expect(r.get("B")).toMatchObject({ early_start: "2026-01-06", early_finish: "2026-01-08", total_float: 0, critical: true });
+    expect(r.get("A")).toMatchObject({ late_finish: "2026-01-05", critical: true });
+    expect(r.get("C")).toMatchObject({ late_finish: "2026-01-08", total_float: 6, critical: false });
+  });
+
+  it("is returned by the schedule API", async () => {
+    const P = `/api/projects/${projectId}/schedule`;
+    const a = (await owner.post(P, { name: "A", startDate: "2026-01-01", endDate: "2026-01-05" })).body;
+    await owner.post(P, { name: "B", startDate: "2026-01-06", endDate: "2026-01-10", predecessorId: a.id });
+    await owner.post(P, { name: "C", startDate: "2026-01-01", endDate: "2026-01-02" });
+    const list = (await owner.get(P)).body;
+    expect(list.filter((x: { critical: boolean }) => x.critical).map((x: { name: string }) => x.name)).toEqual(["A", "B"]);
+    expect(list.find((x: { name: string }) => x.name === "C").total_float).toBe(8);
+  });
+});

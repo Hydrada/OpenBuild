@@ -111,6 +111,8 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 .gantt-label { font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gantt-track { position: relative; height: 1.3rem; background: #f2f4f7; border-radius: 4px; }
 .gantt-bar { position: absolute; top: .15rem; height: 1rem; background: #93c5fd; border-radius: 3px; overflow: hidden; min-width: 4px; }
+.gantt-bar.critical { background: #fdba74; }
+.gantt-bar.critical .gantt-done { background: #c2410c; }
 .gantt-bar.late { background: #fca5a5; }
 .gantt-bar.conflict { outline: 2px dashed #b45309; }
 .gantt-done { display: block; height: 100%; background: #1d4ed8; }

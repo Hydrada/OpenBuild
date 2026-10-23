@@ -7,7 +7,7 @@
   {
     "name": "create project",
     "ok": true,
-    "detail": "df1f40d7-d96b-4262-b255-45abeb80b551"
+    "detail": "765c1804-3031-4448-87a1-405d57928d63"
   },
   {
     "name": "invite user",
@@ -97,7 +97,7 @@
   {
     "name": "export budget CSV",
     "ok": true,
-    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\0e99b204-b2e4-4ace-8a77-068acc79f214"
+    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\53667e38-16ad-448a-98b8-495d34cbd79c"
   },
   {
     "name": "add subcontractor to project (via API: dropdown)",

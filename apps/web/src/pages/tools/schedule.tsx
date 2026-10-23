@@ -8,7 +8,7 @@ import type { ProjectInfo } from "../Project";
 interface Item {
   id: string; name: string; start_date: string; end_date: string; is_milestone: boolean; percent_complete: number;
   predecessor_id: string | null; predecessor_name: string | null; assignee_id: string | null; assignee_name: string | null;
-  late: boolean; dependency_conflict: boolean;
+  late: boolean; dependency_conflict: boolean; early_start: string; early_finish: string; total_float: number; critical: boolean;
 }
 
 const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000;
@@ -52,7 +52,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
               {i.is_milestone ? (
                 <span className={`gantt-milestone ${i.late ? "late" : ""}`} style={{ left: pct(day(i.start_date)) }} title={`${i.name}: ${fmtDate(i.start_date)}`} />
               ) : (
-                <span className={`gantt-bar ${i.late ? "late" : ""} ${i.dependency_conflict ? "conflict" : ""}`}
+                <span className={`gantt-bar ${i.critical ? "critical" : ""} ${i.late ? "late" : ""} ${i.dependency_conflict ? "conflict" : ""}`}
                   style={{ left: pct(day(i.start_date)), width: `calc(${((day(i.end_date) + 1 - day(i.start_date)) / span) * 100}% - 2px)` }}
                   title={`${i.name}: ${fmtDate(i.start_date)} – ${fmtDate(i.end_date)}, ${i.percent_complete}%`}>
                   <span className="gantt-done" style={{ width: `${i.percent_complete}%` }} />
@@ -86,10 +86,10 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
             <div className="table-wrap">
               <table className="table">
                 <caption className="sr-only">Schedule activities</caption>
-                <thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>%</th><th>Depends on</th><th>Responsible</th><th>Flags</th>{writable && <th />}</tr></thead>
+                <thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>%</th><th>Float (days)</th><th>Depends on</th><th>Responsible</th><th>Flags</th>{writable && <th />}</tr></thead>
                 <tbody>
                   {items.map((i) => editing === i.id ? (
-                    <tr key={i.id}><td colSpan={writable ? 8 : 7}>
+                    <tr key={i.id}><td colSpan={writable ? 9 : 8}>
                       <Form ariaLabel={`Edit ${i.name}`} submitLabel="Save" className="flat" onCancel={() => setEditing(null)} fields={fields(i.id)}
                         initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorId: i.predecessor_id ?? "", assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
                         onSubmit={async (v) => { await api("PATCH", `/schedule/${i.id}`, body(v)); setEditing(null); list.reload(); }} />
@@ -100,9 +100,11 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                       <td>{fmtDate(i.start_date)}</td>
                       <td>{i.is_milestone ? "—" : fmtDate(i.end_date)}</td>
                       <td>{i.percent_complete}</td>
+                      <td>{i.total_float}</td>
                       <td>{i.predecessor_name ?? "—"}</td>
                       <td>{i.assignee_name ?? "—"}</td>
                       <td>
+                        {i.critical && <span className="badge badge-high" title="Zero float: any delay moves the project finish">Critical</span>}{" "}
                         {i.late && <span className="badge badge-rejected">Late</span>}{" "}
                         {i.dependency_conflict && <span className="badge badge-pending" title="Starts before its predecessor finishes">Dependency conflict</span>}
                       </td>
