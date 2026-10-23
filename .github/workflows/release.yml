@@ -1,0 +1,37 @@
+name: Release
+
+# Runs only when a version tag (v*) is pushed by the owner. Produces a self-contained tarball:
+#   tar xzf openbuild-<version>.tar.gz && cd openbuild && npm ci --omit=dev && npm start
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: node scripts/smoke.mjs
+      - name: Package
+        run: |
+          mkdir -p out/openbuild/apps/api out/openbuild/apps/web
+          cp package.json package-lock.json LICENSE README.md .env.example out/openbuild/
+          cp -r docs out/openbuild/
+          cp apps/api/package.json out/openbuild/apps/api/ && cp -r apps/api/dist out/openbuild/apps/api/
+          cp apps/web/package.json out/openbuild/apps/web/ && cp -r apps/web/dist out/openbuild/apps/web/
+          tar -C out -czf openbuild-${GITHUB_REF_NAME}.tar.gz openbuild
+          sha256sum openbuild-${GITHUB_REF_NAME}.tar.gz > openbuild-${GITHUB_REF_NAME}.tar.gz.sha256
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" openbuild-${GITHUB_REF_NAME}.tar.gz openbuild-${GITHUB_REF_NAME}.tar.gz.sha256 --title "OpenBuild $GITHUB_REF_NAME" --notes-file docs/CHANGELOG.md

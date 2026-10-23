@@ -645,4 +645,17 @@ CREATE TABLE custom_field_values (
 );
 `,
   },
+  {
+    id: "0006_audit_append_only",
+    sql: /* sql */ `
+-- The audit trail is append-only at the database level, not just by convention.
+CREATE FUNCTION audit_log_immutable() RETURNS trigger LANGUAGE plpgsql AS $fn$
+BEGIN
+  RAISE EXCEPTION 'audit_log is append-only';
+END
+$fn$;
+CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log FOR EACH ROW EXECUTE FUNCTION audit_log_immutable();
+CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log FOR EACH ROW EXECUTE FUNCTION audit_log_immutable();
+`,
+  },
 ];

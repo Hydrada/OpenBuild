@@ -53,6 +53,9 @@ export interface SessionUser {
 }
 
 declare module "fastify" {
+  interface FastifyInstance {
+    routeList: { method: string; url: string }[];
+  }
   interface FastifyRequest {
     user: SessionUser | null;
     apiKeyOrgId: string | null;
@@ -68,6 +71,13 @@ export async function buildApp(config: AppConfig) {
   const app = Fastify({ logger: config.logger ?? false, bodyLimit: 1024 * 1024 });
   await app.register(cookie);
   await app.register(multipart, { limits: { fileSize: config.maxUploadBytes ?? 100 * 1024 * 1024, files: 1, fields: 30 } });
+
+  // Route inventory (used by the security sweep tests and docs/API.md generation).
+  const routeList: { method: string; url: string }[] = [];
+  app.addHook("onRoute", (r) => {
+    for (const m of [r.method].flat()) if (m !== "HEAD") routeList.push({ method: m, url: r.url });
+  });
+  app.decorate("routeList", routeList);
 
   app.decorateRequest("user", null);
   app.decorateRequest("apiKeyOrgId", null);

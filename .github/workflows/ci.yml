@@ -10,8 +10,9 @@ permissions:
 
 jobs:
   test:
+    name: Typecheck, unit/API tests, build, browser tests, install drill
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,6 +23,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: node scripts/smoke.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
         env:
@@ -32,3 +34,60 @@ jobs:
           name: playwright-traces
           path: test-results/
       - run: npm audit --omit=dev --audit-level=high
+
+  postgres:
+    name: API tests and recovery drill on PostgreSQL 16
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: openbuild
+          POSTGRES_PASSWORD: openbuild
+          POSTGRES_DB: openbuild
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U openbuild" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGPASSWORD: openbuild
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://openbuild:openbuild@localhost:5432/openbuild
+      - run: npm run build
+      - run: |
+          psql -h localhost -U openbuild -c "CREATE DATABASE smoke"
+          psql -h localhost -U openbuild -c "CREATE DATABASE smoke_restore"
+      - run: node scripts/smoke.mjs
+        env:
+          DATABASE_URL: postgres://openbuild:openbuild@localhost:5432/smoke
+          RESTORE_DATABASE_URL: postgres://openbuild:openbuild@localhost:5432/smoke_restore
+
+  docker:
+    name: Docker Compose deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up --build -d
+      - name: Wait for health, create data, restart, verify persistence
+        run: |
+          for i in $(seq 1 60); do curl -fs http://localhost:3000/api/health && break; sleep 2; done
+          curl -fs -c jar -H 'content-type: application/json' -H 'x-openbuild-csrf: 1' \
+            -d '{"email":"ci@acme.test","password":"correct horse battery","name":"CI","orgName":"CI Co"}' http://localhost:3000/api/auth/register
+          ORG=$(curl -fs -b jar http://localhost:3000/api/me | node -pe 'JSON.parse(require("fs").readFileSync(0)).orgs[0].id')
+          curl -fs -b jar -H 'content-type: application/json' -H 'x-openbuild-csrf: 1' -d '{"name":"Docker tower"}' http://localhost:3000/api/orgs/$ORG/projects
+          docker compose restart app
+          for i in $(seq 1 60); do curl -fs http://localhost:3000/api/health && break; sleep 2; done
+          curl -fs -b jar http://localhost:3000/api/orgs/$ORG/projects | grep -q "Docker tower"
+          curl -fs http://localhost:3000/ | grep -q '<div id="root">'
+      - if: failure()
+        run: docker compose logs
+      - run: docker compose down -v

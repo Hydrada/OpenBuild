@@ -194,6 +194,8 @@ describe("dashboard and audit", () => {
     expect(d.tasks).toEqual({ open: 1, overdue: 1, done: 1 });
     expect(d.projectsByStatus).toEqual([{ status: "active", count: 1 }]);
     expect(d.myTasks.map((t: { title: string }) => t.title)).toEqual(["Overdue"]);
+    // Calendar dates round-trip exactly, regardless of the server's time zone.
+    expect(d.myTasks[0].due_date).toBe("2020-01-01");
 
     const auditRows = (await owner.get(`/api/orgs/${orgId}/audit`)).body;
     expect(auditRows.map((a: { action: string }) => a.action)).toEqual(["task.create", "task.create", "project.create", "org.create"]);

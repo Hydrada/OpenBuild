@@ -14,8 +14,10 @@ export interface Db extends Queryable {
   readonly driver: "postgres" | "pglite";
 }
 
-// Return NUMERIC as strings so money never passes through a JS float.
+// Return NUMERIC as strings so money never passes through a JS float, and DATE as "YYYY-MM-DD"
+// so calendar dates never shift with the server's time zone.
 pg.types.setTypeParser(1700, (v) => v);
+pg.types.setTypeParser(1082, (v) => v);
 
 /** `schema` (tests) pins every pooled connection's search_path so suites can run isolated in one database. */
 export function createPostgresDb(connectionString: string, schema?: string): Db {
@@ -52,7 +54,7 @@ export function createPostgresDb(connectionString: string, schema?: string): Db 
 export async function createPgliteDb(dataDir?: string): Promise<Db> {
   if (dataDir) mkdirSync(dataDir, { recursive: true });
   const lite = new PGlite(dataDir, {
-    parsers: { 1700: (v: string) => v },
+    parsers: { 1700: (v: string) => v, 1082: (v: string) => v },
   });
   await lite.waitReady;
   return {

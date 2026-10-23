@@ -1,4 +1,3 @@
-# UNTESTED: Docker was not available on the development machine (see docs/KNOWN_LIMITATIONS.md).
 services:
   db:
     image: postgres:16
@@ -12,6 +11,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U openbuild"]
       interval: 5s
       retries: 10
+    restart: unless-stopped
 
   app:
     build: .
@@ -22,8 +22,15 @@ services:
       DATABASE_URL: postgres://openbuild:${POSTGRES_PASSWORD:-change-me}@db:5432/openbuild
       OPENBUILD_ALLOW_SIGNUP: ${OPENBUILD_ALLOW_SIGNUP:-true}
       OPENBUILD_SECURE_COOKIES: ${OPENBUILD_SECURE_COOKIES:-false}
+      OPENBUILD_BASE_URL: ${OPENBUILD_BASE_URL:-}
+      OPENBUILD_SMTP_URL: ${OPENBUILD_SMTP_URL:-}
+      OPENBUILD_MAIL_FROM: ${OPENBUILD_MAIL_FROM:-}
+    volumes:
+      - files:/data
     ports:
-      - "3000:3000"
+      - "${OPENBUILD_PORT:-3000}:3000"
+    restart: unless-stopped
 
 volumes:
   pgdata:
+  files:
