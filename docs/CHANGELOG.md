@@ -11,6 +11,7 @@
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
 - Working calendar per project (weekdays and holidays) used by the critical path.
+- Resources with daily capacity and resource levelling.
 - Models: IFC model register with version element deltas.
 - Single sign-on: OpenID Connect.
 - Offline: photos queue on the device.
