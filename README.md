@@ -27,7 +27,7 @@ Shared server: `docker compose up -d --build` (PostgreSQL 16). See [DEPLOYMENT.m
 
 ## Tests
 ```sh
-npm test               # 66 API tests incl. golden financial math and an authorization sweep over every route
+npm test               # 67 API tests incl. golden financial math and an authorization sweep over every route
 npm run test:e2e       # 19 Playwright browser tests incl. offline sync and an axe accessibility scan
 node scripts/smoke.mjs # install → hard kill → restart → backup → restore drill
 node scripts/load-test.mjs http://127.0.0.1:3000

@@ -10,7 +10,7 @@ function ShareBox({ link, name }: { link: ShareLink | null; name: string }) {
   return (
     <div className="span-all notice" role="status">
       {link.text}
-      <input readOnly value={link.url} aria-label={name} onFocus={(e) => e.target.select()} />
+      {link.url && <input readOnly value={link.url} aria-label={name} onFocus={(e) => e.target.select()} />}
     </div>
   );
 }
@@ -68,6 +68,7 @@ export function TeamPage({ orgId, myRole, myId }: { orgId: string; myRole: strin
                 const r = await api("POST", `/orgs/${orgId}/members/${m.id}/reset-link`);
                 setReset({ text: `${r.emailSent ? "Reset link emailed. " : ""}Password reset link for ${m.name} (valid 24 hours):`, url: `${location.origin}${r.resetPath}` });
               }}>Reset password</ActionButton>
+              <ActionButton className="link" confirm={`Turn off two-factor login for ${m.name}? They will be signed out and can enrol again.`} onClick={async () => { await api("POST", `/orgs/${orgId}/members/${m.id}/reset-mfa`); setReset({ text: `Two-factor login was reset for ${m.name}.`, url: "" }); }}>Reset 2FA</ActionButton>
               <ActionButton className="link danger" confirm={`Remove ${m.name} from the company and all its projects?`} onClick={async () => { await api("DELETE", `/orgs/${orgId}/members/${m.id}`); reload(); }}>Remove</ActionButton>
             </span>
           ) },

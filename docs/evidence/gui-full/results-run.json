@@ -7,7 +7,7 @@
   {
     "name": "create project",
     "ok": true,
-    "detail": "ee7745ed-09c6-432d-90ba-e5a8f37d9c83"
+    "detail": "df1f40d7-d96b-4262-b255-45abeb80b551"
   },
   {
     "name": "invite user",
@@ -50,6 +50,16 @@
     "detail": ""
   },
   {
+    "name": "meeting minutes published",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "timesheet logged",
+    "ok": true,
+    "detail": ""
+  },
+  {
     "name": "interrupted form leaves no record",
     "ok": true,
     "detail": ""
@@ -87,7 +97,7 @@
   {
     "name": "export budget CSV",
     "ok": true,
-    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\2bcc5b2b-517d-4844-827c-9e02c85f8b9a"
+    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\0e99b204-b2e4-4ace-8a77-068acc79f214"
   },
   {
     "name": "add subcontractor to project (via API: dropdown)",
@@ -101,6 +111,16 @@
   },
   {
     "name": "subcontractor sees no unassigned RFIs",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "enable two-factor login",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "sign in with authenticator code",
     "ok": true,
     "detail": ""
   }

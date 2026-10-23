@@ -14,8 +14,8 @@ test("budget → subcontract → change order → pay application, with correct 
   await owner.getByLabel("Original budget 05-120").fill("300000.50");
   await owner.getByRole("row", { name: /05-120/ }).getByRole("button", { name: "Save" }).click();
   await expect(owner.getByRole("row", { name: /Total/ })).toContainText("$800,000.50");
-  owner.once("dialog", (d) => d.accept());
   await owner.getByRole("button", { name: "Lock budget" }).click();
+  await owner.getByRole("button", { name: "Confirm" }).click();
   await expect(owner.getByText("Locked", { exact: true })).toBeVisible();
 
   // Subcontract

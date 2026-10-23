@@ -210,11 +210,25 @@ export function KeyValues({ items }: { items: [string, ReactNode][] }) {
   );
 }
 
+/** Button that runs an async action; with `confirm`, it first asks inline (no blocking browser dialog). */
 export function ActionButton({ children, onClick, className, confirm: confirmText }: { children: ReactNode; onClick: () => Promise<unknown>; className?: string; confirm?: string }) {
   const { busy, error, run } = useAction();
+  const [asking, setAsking] = useState(false);
+  if (asking) {
+    return (
+      <span className="action-button confirming" role="group" aria-label="Confirm action">
+        <span className="confirm-text">{confirmText}</span>
+        <span className="confirm-buttons">
+          <button className={className?.includes("danger") ? "danger" : "primary"} disabled={busy} autoFocus onClick={() => run(onClick).then(() => setAsking(false))}>Confirm</button>
+          <button disabled={busy} onClick={() => setAsking(false)}>Cancel</button>
+        </span>
+        <ErrorText error={error} />
+      </span>
+    );
+  }
   return (
     <span className="action-button">
-      <button className={className} disabled={busy} onClick={() => (!confirmText || window.confirm(confirmText)) && run(onClick)}>{children}</button>
+      <button className={className} disabled={busy} onClick={() => (confirmText ? setAsking(true) : run(onClick))}>{children}</button>
       <ErrorText error={error} />
     </span>
   );

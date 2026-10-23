@@ -45,10 +45,10 @@ export const authRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
   });
 
   app.post("/auth/login", async (req, reply) => {
-    const body = z.object({ email, password: z.string().max(200), code: z.string().trim().max(10).optional() }).parse(req.body);
+    const body = z.object({ email, password: z.string().max(200), code: z.string().trim().max(20).optional() }).parse(req.body);
     if (!loginLimiter.hit(`${req.ip}|${body.email}`)) throw new HttpError(429, "Too many sign-in attempts. Try again later.");
-    const [u] = await db.query<{ id: string; password_hash: string; disabled_at: string | null; totp_enabled: boolean; totp_secret: string | null }>(
-      "SELECT id, password_hash, disabled_at, totp_enabled, totp_secret FROM users WHERE lower(email) = $1",
+    const [u] = await db.query<{ id: string; password_hash: string; disabled_at: string | null; totp_enabled: boolean; totp_secret: string | null; mfa_recovery_hashes: string[] }>(
+      "SELECT id, password_hash, disabled_at, totp_enabled, totp_secret, mfa_recovery_hashes FROM users WHERE lower(email) = $1",
       [body.email],
     );
     // Verify against a dummy hash when the user is unknown so timing does not reveal account existence.
@@ -57,7 +57,16 @@ export const authRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
     // Second factor: only asked for after the password is correct.
     if (u.totp_enabled) {
       if (!body.code) return reply.code(401).send({ error: "Enter the 6-digit code from your authenticator app", mfaRequired: true });
-      if (!verifyTotp(u.totp_secret!, body.code)) return reply.code(401).send({ error: "That code is not valid", mfaRequired: true });
+      const recovery = sha256(body.code.toLowerCase());
+      if (!verifyTotp(u.totp_secret!, body.code)) {
+        // A recovery code works once: remove it atomically so a replay fails.
+        const used = await db.query(
+          "UPDATE users SET mfa_recovery_hashes = array_remove(mfa_recovery_hashes, $2) WHERE id = $1 AND $2 = ANY(mfa_recovery_hashes) RETURNING id",
+          [u.id, recovery],
+        );
+        if (!used.length) return reply.code(401).send({ error: "That code is not valid", mfaRequired: true });
+        await audit(db, { orgId: null, actorId: u.id, action: "user.mfa_recovery_code_used", entityType: "user", entityId: u.id });
+      }
     }
     await startSession(db, reply, u.id);
     return { id: u.id };

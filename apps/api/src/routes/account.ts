@@ -152,11 +152,13 @@ export const accountRoutes = (config: AppConfig): FastifyPluginAsync => async (a
     const [u] = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>("SELECT totp_secret, totp_enabled FROM users WHERE id = $1", [user.id]);
     if (u!.totp_enabled) throw new HttpError(409, "Two-factor login is already on");
     if (!u!.totp_secret || !verifyTotp(u!.totp_secret, b.code)) throw new HttpError(400, "That code is not valid");
+    // Ten single-use recovery codes, shown once, stored only as hashes.
+    const codes = Array.from({ length: 10 }, () => newToken().token.replace(/[^A-Za-z0-9]/g, "").slice(0, 10).toLowerCase());
     await db.tx(async (q) => {
-      await q.query("UPDATE users SET totp_enabled = true WHERE id = $1", [user.id]);
+      await q.query("UPDATE users SET totp_enabled = true, mfa_recovery_hashes = $2 WHERE id = $1", [user.id, codes.map(sha256)]);
       await audit(q, { orgId: null, actorId: user.id, action: "user.mfa_enable", entityType: "user", entityId: user.id });
     });
-    return { ok: true };
+    return { ok: true, recoveryCodes: codes };
   });
 
   app.post("/me/mfa/disable", async (req) => {
@@ -166,8 +168,34 @@ export const accountRoutes = (config: AppConfig): FastifyPluginAsync => async (a
     if (!u!.totp_enabled) throw new HttpError(409, "Two-factor login is off");
     if (!(await verifyPassword(b.password, u!.password_hash)) || !verifyTotp(u!.totp_secret!, b.code)) throw new HttpError(400, "Password or code is incorrect");
     await db.tx(async (q) => {
-      await q.query("UPDATE users SET totp_enabled = false, totp_secret = NULL WHERE id = $1", [user.id]);
+      await q.query("UPDATE users SET totp_enabled = false, totp_secret = NULL, mfa_recovery_hashes = '{}' WHERE id = $1", [user.id]);
       await audit(q, { orgId: null, actorId: user.id, action: "user.mfa_disable", entityType: "user", entityId: user.id });
+    });
+    return { ok: true };
+  });
+
+  /**
+   * Lost-phone recovery by an administrator: owners can reset anyone else's second factor, admins only members'.
+   * Same cross-organization guard as reset links. The person signs in with their password and can enrol again.
+   */
+  app.post<{ Params: { orgId: string; userId: string } }>("/orgs/:orgId/members/:userId/reset-mfa", async (req) => {
+    const user = requireUser(req);
+    if (!isUuid(req.params.orgId) || !isUuid(req.params.userId)) throw new HttpError(404, "Member not found");
+    const myRole = await requireOrgRole(db, user.id, req.params.orgId, ["owner", "admin"]);
+    if (req.params.userId === user.id) throw new HttpError(400, "Use your recovery codes or account page for your own two-factor login");
+    const [target] = await db.query<{ role: string }>("SELECT role FROM org_memberships WHERE org_id = $1 AND user_id = $2", [req.params.orgId, req.params.userId]);
+    if (!target) throw new HttpError(404, "Member not found");
+    if (myRole === "admin" && target.role !== "member") throw new HttpError(403, "Admins can only reset members");
+    const [foreign] = await db.query(
+      `SELECT 1 FROM org_memberships m WHERE m.user_id = $1 AND m.org_id <> $2
+          AND NOT EXISTS (SELECT 1 FROM org_memberships me WHERE me.user_id = $3 AND me.org_id = m.org_id AND me.role = 'owner')`,
+      [req.params.userId, req.params.orgId, user.id],
+    );
+    if (foreign) throw new HttpError(403, "This person also belongs to another organization");
+    await db.tx(async (q) => {
+      await q.query("UPDATE users SET totp_enabled = false, totp_secret = NULL, mfa_recovery_hashes = '{}' WHERE id = $1", [req.params.userId]);
+      await q.query("DELETE FROM sessions WHERE user_id = $1", [req.params.userId]);
+      await audit(q, { orgId: req.params.orgId, actorId: user.id, action: "user.mfa_reset", entityType: "user", entityId: req.params.userId });
     });
     return { ok: true };
   });

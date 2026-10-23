@@ -92,9 +92,16 @@ function WorkList({ title, rows, href, render }: { title: string; rows: any[]; h
 
 function TwoFactor({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
   const [setup, setSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  const [codes, setCodes] = useState<string[] | null>(null);
   return (
     <section className="card" aria-label="Two-factor login">
       <h2>Two-factor login {enabled ? <Badge value="active" /> : null}</h2>
+      {codes && (
+        <div className="notice" role="status">
+          <strong>Save these recovery codes now.</strong> Each signs you in once if you lose your phone; they will not be shown again.
+          <ul className="recovery" aria-label="Recovery codes">{codes.map((c) => <li key={c}><code>{c}</code></li>)}</ul>
+        </div>
+      )}
       {enabled ? (
         <Form ariaLabel="Turn off two-factor login" submitLabel="Turn off two-factor login" className="flat"
           fields={[{ name: "password", label: "Password", type: "password", required: true }, { name: "code", label: "Current 6-digit code", required: true }]}
@@ -106,7 +113,7 @@ function TwoFactor({ enabled, onChange }: { enabled: boolean; onChange: () => vo
           <p className="muted small">Or open this link on the phone: <a href={setup.otpauthUrl}>add to authenticator</a></p>
           <Form ariaLabel="Confirm two-factor login" submitLabel="Turn on two-factor login" className="flat"
             fields={[{ name: "code", label: "6-digit code", required: true }]}
-            onSubmit={async (v) => { await api("POST", "/me/mfa/enable", { code: v.code }); setSetup(null); onChange(); }} />
+            onSubmit={async (v) => { const r = await api("POST", "/me/mfa/enable", { code: v.code }); setCodes(r.recoveryCodes); setSetup(null); onChange(); }} />
         </>
       ) : (
         <>

@@ -725,4 +725,10 @@ ALTER TABLE users ADD COLUMN totp_secret text;
 ALTER TABLE users ADD COLUMN totp_enabled boolean NOT NULL DEFAULT false;
 `,
   },
+  {
+    id: "0009_mfa_recovery",
+    sql: /* sql */ `
+ALTER TABLE users ADD COLUMN mfa_recovery_hashes text[] NOT NULL DEFAULT '{}';
+`,
+  },
 ];

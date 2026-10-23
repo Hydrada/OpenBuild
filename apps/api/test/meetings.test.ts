@@ -75,7 +75,8 @@ describe("two-factor login", () => {
     const setup = (await owner.post("/api/me/mfa/setup")).body;
     expect(setup.otpauthUrl).toMatch(/^otpauth:\/\/totp\/OpenBuild/);
     expect((await owner.post("/api/me/mfa/enable", { code: "000000" })).status).toBe(400);
-    expect((await owner.post("/api/me/mfa/enable", { code: totp(setup.secret) })).status).toBe(200);
+    const enabled = (await owner.post("/api/me/mfa/enable", { code: totp(setup.secret) })).body;
+    expect(enabled.recoveryCodes).toHaveLength(10);
     expect((await owner.get("/api/me")).body.user.mfaEnabled).toBe(true);
 
     const c = new Client(app);
@@ -86,9 +87,30 @@ describe("two-factor login", () => {
     expect((await c.post("/api/auth/login", { email: "owner@example.com", password: "wrong password!", code: totp(setup.secret) })).status).toBe(401);
     expect((await c.post("/api/auth/login", { email: "owner@example.com", password: "correct horse battery", code: totp(setup.secret) })).status).toBe(200);
 
+    // A recovery code signs in exactly once
+    const rc = enabled.recoveryCodes[0];
+    expect((await new Client(app).post("/api/auth/login", { email: "owner@example.com", password: "correct horse battery", code: rc })).status).toBe(200);
+    expect((await new Client(app).post("/api/auth/login", { email: "owner@example.com", password: "correct horse battery", code: rc })).status).toBe(401);
     expect((await owner.post("/api/me/mfa/disable", { password: "nope", code: totp(setup.secret) })).status).toBe(400);
     expect((await owner.post("/api/me/mfa/disable", { password: "correct horse battery", code: totp(setup.secret) })).status).toBe(200);
     expect((await new Client(app).post("/api/auth/login", { email: "owner@example.com", password: "correct horse battery" })).status).toBe(200);
 
+  });
+});
+
+describe("two-factor reset by an administrator", () => {
+  it("lets the owner reset a member's lost second factor, but not across organizations", async () => {
+    const { client: m, userId } = await inviteAndJoin(app, owner, orgId, "m@example.com");
+    const setup = (await m.post("/api/me/mfa/setup")).body;
+    await m.post("/api/me/mfa/enable", { code: totp(setup.secret) });
+    expect((await new Client(app).post("/api/auth/login", { email: "m@example.com", password: "another long password" })).body.mfaRequired).toBe(true);
+    const { client: admin } = await inviteAndJoin(app, owner, orgId, "a@example.com", { orgRole: "admin" });
+    expect((await admin.post(`/api/orgs/${orgId}/members/${userId}/reset-mfa`)).status).toBe(200);
+    expect((await m.get("/api/me")).status).toBe(401); // sessions revoked
+    expect((await new Client(app).post("/api/auth/login", { email: "m@example.com", password: "another long password" })).status).toBe(200);
+    const ownerId = (await owner.get("/api/me")).body.user.id;
+    expect((await admin.post(`/api/orgs/${orgId}/members/${ownerId}/reset-mfa`)).status).toBe(403);
+    const other = await registerOwner(app, "o2@example.com");
+    expect((await other.client.post(`/api/orgs/${orgId}/members/${userId}/reset-mfa`)).status).toBe(404);
   });
 });

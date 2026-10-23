@@ -5,6 +5,17 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { connect } from "./mcp.mjs";
+import { createHmac } from "node:crypto";
+
+function totpNow(secret) {
+  const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = 0, val = 0; const bytes = [];
+  for (const ch of secret) { val = (val << 5) | A.indexOf(ch); bits += 5; if (bits >= 8) { bytes.push((val >>> (bits - 8)) & 255); bits -= 8; } }
+  const ctr = Buffer.alloc(8); ctr.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
+  const h = createHmac("sha1", Buffer.from(bytes)).update(ctr).digest();
+  const o = h[h.length - 1] & 15;
+  return String((h.readUInt32BE(o) & 0x7fffffff) % 1e6).padStart(6, "0");
+}
 
 const [base = "http://127.0.0.1:3200", phase = "run", outArg = "docs/evidence/gui-full"] = process.argv.slice(2);
 const outDir = resolve(outArg);
@@ -217,7 +228,31 @@ try {
     await look("schedule");
     check("schedule activity and milestone", has("Door installation") && has("Owner walkthrough") && has("Schedule bar chart"));
     await go("/");
+    await until(() => has('link "Owner walkthrough"'));
     check("milestone on dashboard", has('link "Owner walkthrough"'));
+
+    // ---- Meeting minutes (GUI only)
+    await go(`/projects/${projectId}/meetings`);
+    await click("button", "New meeting", 'textbox "Title"');
+    await type("Title", "OAC meeting #1", "textbox");
+    await type("Agenda (one topic per line)", ["Safety", "Door hardware"].join(String.fromCharCode(10)), "textbox");
+    await click("button", "Create meeting", "OAC meeting #1");
+    await click("link", "OAC meeting #1", "Publish minutes");
+    await type("Topic / action", "Confirm panic hardware order", "textbox");
+    await click("button", "Add item", "Confirm panic hardware order");
+    await click("button", "Publish minutes", 'button "Confirm"');
+    await click("button", "Confirm", "Minutes published");
+    await until(() => has("Minutes published"));
+    await look("meeting");
+    check("meeting minutes published", has("Minutes published") && has("Confirm panic hardware order"));
+
+    // ---- Timesheet (GUI only)
+    await go(`/projects/${projectId}/timesheets`);
+    await click("button", "Log time", 'spinbutton "Hours"');
+    await type("Hours", "6.5", "spinbutton");
+    await type("Work done", "Door frame install", "textbox");
+    await click("button", "Save time", "6.50");
+    check("timesheet logged", has("Door frame install") && has("6.50"));
 
     // ---- Interrupted workflow: start a change event, navigate away mid-form
     await go(`/projects/${projectId}/change-events`);
@@ -288,10 +323,36 @@ try {
     await go(`/projects/${projectId}/rfis`);
     check("subcontractor sees no unassigned RFIs", !has("Door hardware at stair 2"));
     await click("button", "Sign out", 'button "Sign in"');
+
+    // ---- Two-factor login for the owner (GUI), then sign in with a live code
+    await signIn(OWNER.email, OWNER.password);
+    await go("/account");
+    await click("button", "Set up two-factor login", "Setup key");
+    const key = snap.refs.find((r) => r.name === "Setup key") ?? (snap.content_refs ?? []).find((r) => r.name === "Setup key");
+    const secretText = (key?.value ?? snap.outline.match(/([A-Z2-7]{4}(?: [A-Z2-7]{1,4}){7})/)?.[1] ?? "").replace(/\s/g, "");
+    await type("6-digit code", totpNow(secretText), "textbox");
+    await click("button", "Turn on two-factor login", "Save these recovery codes");
+    await look("two-factor");
+    check("enable two-factor login", has("Save these recovery codes") && has("Turn off two-factor login"));
+    writeFileSync(stateFile, JSON.stringify({ projectId, totp: secretText }));
+    await click("button", "Sign out", 'button "Sign in"');
+    await type("Email", OWNER.email, "textbox");
+    await type("Password", OWNER.password, "textbox");
+    await click("button", "Sign in", "Authentication code");
+    await type("Authentication code (or a recovery code)", totpNow(secretText), "textbox");
+    await click("button", "Sign in", 'link "Dashboard"');
+    check("sign in with authenticator code", has('heading "Dashboard"'));
   } else {
     // ---- After the server was restarted
-    const { projectId } = JSON.parse(readFileSync(stateFile, "utf8"));
-    await signIn(OWNER.email, OWNER.password);
+    const { projectId, totp: secret } = JSON.parse(readFileSync(stateFile, "utf8"));
+    await go("/");
+    if (has('button "Sign out"')) await click("button", "Sign out", 'button "Sign in"');
+    await type("Email", OWNER.email, "textbox");
+    await type("Password", OWNER.password, "textbox");
+    await click("button", "Sign in", "Authentication code");
+    await type("Authentication code (or a recovery code)", totpNow(secret), "textbox");
+    await click("button", "Sign in", 'link "Dashboard"');
+    check("two-factor still required after restart", true);
     await go(`/projects/${projectId}/rfis`);
     check("RFI persists after restart", has("Door hardware at stair 2"));
     await go(`/projects/${projectId}/punch`);
@@ -301,9 +362,18 @@ try {
     check("pay application persists after restart", has("$26,837.98"));
     await go("/audit");
     await look("audit");
-    check("audit trail recorded", has("invoice.lines") && has("change_order.decision") && has("drawing.revision"));
+    // Long tables exceed the snapshot budget, so query the page for each expected entry.
+    const found = [];
+    for (const action of ["invoice.lines", "change_order.decision", "drawing.revision", "meeting.publish"]) {
+      const r = (await c.call("get_browser_state", { ...T, snapshot_format: "semantic_v2", query: action })).json;
+      if ((r.outline ?? "").includes(action)) found.push(action);
+    }
+    await look();
+    check("audit trail recorded", found.length === 4, found.join(", "));
     await go(`/projects/${projectId}/schedule`);
     check("schedule persists after restart", has("Door installation") && has("Owner walkthrough"));
+    await go(`/projects/${projectId}/meetings`);
+    check("meeting persists after restart", has("OAC meeting #1"));
   }
 } catch (e) {
   check("flow completed without error", false, e.message.slice(0, 1500));

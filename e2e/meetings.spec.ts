@@ -19,8 +19,8 @@ test("meeting minutes with an action item, published to attendees", async ({ bro
   await owner.getByLabel("Action owner").selectOption({ label: "Pat Manager" });
   await owner.getByRole("button", { name: "Add item" }).click();
   await expect(owner.getByRole("cell", { name: "Confirm crane date" })).toBeVisible();
-  owner.once("dialog", (d) => d.accept());
   await owner.getByRole("button", { name: "Publish minutes" }).click();
+  await owner.getByRole("button", { name: "Confirm" }).click();
   await expect(owner.getByRole("heading", { name: /Minutes published/ })).toBeVisible();
   await expect(owner.getByText("No incidents this week")).toBeVisible();
 
@@ -61,7 +61,7 @@ test("two-factor login: enrol, then sign in with a code", async ({ browser }) =>
   await fresh.getByLabel("Password").fill(PASSWORD);
   await fresh.getByRole("button", { name: "Sign in" }).click();
   await expect(fresh.getByText("Enter the 6-digit code")).toBeVisible();
-  await fresh.getByLabel("Authentication code").fill(totp(secret));
+  await fresh.getByLabel(/Authentication code/).fill(totp(secret));
   await fresh.getByRole("button", { name: "Sign in" }).click();
   await expect(fresh.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 });

@@ -29,6 +29,9 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 .back:hover { color: var(--ink); }
 .row-actions { display: inline-flex; gap: .75rem; }
 .action-button { display: inline-flex; flex-direction: column; }
+.action-button.confirming { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: .4rem .6rem; gap: .35rem; max-width: 26rem; }
+.confirm-text { font-size: .9rem; }
+.confirm-buttons { display: flex; gap: .4rem; }
 .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .5rem 1.25rem; margin: 0 0 .75rem; }
 .kv div { min-width: 0; }
 .kv dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
@@ -116,6 +119,7 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 .gantt-milestone.late { background: #b91c1c; }
 .gantt-today { position: absolute; top: -.15rem; bottom: -.15rem; width: 2px; background: var(--accent); z-index: 1; }
 
+.recovery { columns: 2; list-style: none; padding: 0; margin: .5rem 0 0; }
 .secret { font-size: 1.1rem; letter-spacing: .08em; background: #f2f4f7; padding: .3rem .5rem; border-radius: 4px; }
 .attendees { border: 1px solid var(--line); border-radius: 6px; display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; }
 .attendees legend { font-size: .85rem; color: var(--muted); }

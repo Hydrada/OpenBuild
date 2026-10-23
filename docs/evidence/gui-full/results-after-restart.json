@@ -1,5 +1,10 @@
 [
   {
+    "name": "two-factor still required after restart",
+    "ok": true,
+    "detail": ""
+  },
+  {
     "name": "RFI persists after restart",
     "ok": true,
     "detail": ""
@@ -17,10 +22,15 @@
   {
     "name": "audit trail recorded",
     "ok": true,
-    "detail": ""
+    "detail": "invoice.lines, change_order.decision, drawing.revision, meeting.publish"
   },
   {
     "name": "schedule persists after restart",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "meeting persists after restart",
     "ok": true,
     "detail": ""
   }

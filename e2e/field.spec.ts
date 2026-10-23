@@ -26,8 +26,8 @@ test("daily log with manpower, then signed and locked", async ({ browser }) => {
   await owner.getByRole("button", { name: "Save manpower" }).click();
   await expect(owner.getByText("11 workers")).toBeVisible();
 
-  owner.once("dialog", (d) => d.accept());
   await owner.getByRole("button", { name: "Sign log" }).click();
+  await owner.getByRole("button", { name: "Confirm" }).click();
   await expect(owner.getByText(/Signed by Olive Owner/)).toBeVisible();
   await expect(owner.getByRole("button", { name: "Save log" })).toHaveCount(0);
 

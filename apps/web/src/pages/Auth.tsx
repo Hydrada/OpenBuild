@@ -41,7 +41,7 @@ export function AuthPage({ onAuthed, allowSignup }: { onAuthed: () => void; allo
             autoComplete={mode === "login" ? "current-password" : "new-password"} />
         </Field>
         {needCode && mode === "login" && (
-          <Field label="Authentication code"><input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" value={form.code} onChange={set("code")} required autoFocus /></Field>
+          <Field label="Authentication code (or a recovery code)"><input inputMode="numeric" autoComplete="one-time-code" value={form.code} onChange={set("code")} required autoFocus /></Field>
         )}
         <ErrorText error={error} />
         <button className="primary" disabled={busy}>{mode === "login" ? "Sign in" : "Create account"}</button>
