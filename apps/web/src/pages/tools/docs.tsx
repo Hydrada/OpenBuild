@@ -36,6 +36,11 @@ export function DrawingsTool({ project }: { project: ProjectInfo }) {
             )}
           </Creator>
         )}
+        {canWrite(project.myRole) && (
+          <Creator label="Upload drawing set">
+            {(close) => <DrawingSetImport projectId={project.id} onDone={() => { close(); list.reload(); all.reload(); }} onCancel={close} />}
+          </Creator>
+        )}
       </div>
       {disciplines.length > 1 && (
         <div className="filters">
@@ -263,5 +268,85 @@ export function SpecsTool({ project }: { project: ProjectInfo }) {
         ]} />
       </section>
     </>
+  );
+}
+
+interface DetectedPage { page: number; number: string | null; title: string | null; discipline: string; existing: { number: string; title: string; latest: string | null } | null }
+
+/** Upload one PDF set, review the sheet numbers and titles read from each title block, then publish. */
+function DrawingSetImport({ projectId, onDone, onCancel }: { projectId: string; onDone: () => void; onCancel: () => void }) {
+  const [analysis, setAnalysis] = useState<{ fileId: string; pages: DetectedPage[] } | null>(null);
+  const [rows, setRows] = useState<{ page: number; include: boolean; number: string; title: string; discipline: string }[]>([]);
+  const [meta, setMeta] = useState({ revision: "0", setName: "", issuedDate: "" });
+  const [done, setDone] = useState<string | null>(null);
+  const { busy, error, run } = useAction();
+  const set = (i: number, k: string, v: string | boolean) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
+  if (!analysis) {
+    return (
+      <div className="card form">
+        <label>Drawing set (one PDF, any number of sheets)
+          <input type="file" accept="application/pdf" aria-label="Drawing set PDF" disabled={busy} onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) run(async () => {
+              const a = await upload<{ fileId: string; pages: DetectedPage[] }>(`/projects/${projectId}/drawing-sets/analyze`, {}, f);
+              setAnalysis(a);
+              setRows(a.pages.map((p) => ({ page: p.page, include: true, number: p.number ?? "", title: p.title ?? p.existing?.title ?? "", discipline: p.discipline })));
+            });
+          }} />
+        </label>
+        {busy && <p className="muted" role="status">Reading title blocks…</p>}
+        <ErrorText error={error} />
+        <div className="actions"><button type="button" onClick={onCancel}>Cancel</button></div>
+      </div>
+    );
+  }
+  const chosen = rows.filter((r) => r.include);
+  return (
+    <form className="card" aria-label="Review drawing set" onSubmit={(e) => {
+      e.preventDefault();
+      run(async () => {
+        const r = await api("POST", `/projects/${projectId}/drawing-sets/import`, {
+          fileId: analysis.fileId, revision: meta.revision, setName: meta.setName || null, issuedDate: meta.issuedDate || null,
+          sheets: chosen.map((x) => ({ page: x.page, number: x.number.trim(), title: x.title.trim(), discipline: x.discipline })),
+        });
+        setDone(`Published ${r.imported} sheet(s), ${r.newSheets} new.`);
+        setTimeout(onDone, 600);
+      });
+    }}>
+      <h3>Review {rows.length} page(s)</h3>
+      <p className="muted small">Sheet numbers and titles were read from each title block. Check them before publishing; blank rows had no readable text.</p>
+      <div className="row">
+        <label>Revision <input required value={meta.revision} onChange={(e) => setMeta({ ...meta, revision: e.target.value })} /></label>
+        <label>Set name <input value={meta.setName} placeholder="Issued for construction" onChange={(e) => setMeta({ ...meta, setName: e.target.value })} /></label>
+        <label>Issued <input type="date" value={meta.issuedDate} onChange={(e) => setMeta({ ...meta, issuedDate: e.target.value })} /></label>
+      </div>
+      <div className="table-wrap">
+        <table className="table">
+          <caption className="sr-only">Detected sheets</caption>
+          <thead><tr><th scope="col">Include</th><th scope="col">Page</th><th scope="col">Sheet number</th><th scope="col">Title</th><th scope="col">Discipline</th><th scope="col">Status</th></tr></thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const ex = analysis.pages[i]!.existing;
+              return (
+                <tr key={r.page}>
+                  <td><input type="checkbox" aria-label={`Include page ${r.page}`} checked={r.include} onChange={(e) => set(i, "include", e.target.checked)} /></td>
+                  <td>{r.page}</td>
+                  <td><input aria-label={`Sheet number page ${r.page}`} required={r.include} value={r.number} size={9} onChange={(e) => set(i, "number", e.target.value.toUpperCase())} /></td>
+                  <td><input aria-label={`Title page ${r.page}`} value={r.title} onChange={(e) => set(i, "title", e.target.value)} /></td>
+                  <td><input aria-label={`Discipline page ${r.page}`} value={r.discipline} size={12} onChange={(e) => set(i, "discipline", e.target.value)} /></td>
+                  <td className="small">{ex && ex.number === r.number ? `Revises rev ${ex.latest ?? "—"}` : "New sheet"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <ErrorText error={error} />
+      {done && <p className="notice" role="status">{done}</p>}
+      <div className="actions">
+        <button type="button" onClick={onCancel}>Cancel</button>
+        <button className="primary" type="submit" disabled={busy || !chosen.length}>Publish {chosen.length} sheet(s)</button>
+      </div>
+    </form>
   );
 }

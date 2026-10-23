@@ -59,3 +59,27 @@ test("sheet viewer: renders the sheet, saves and publishes a markup, compares re
   await expect(viewer.getByText(/changed pixels/)).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("drawing set: upload one PDF, review detected sheets, publish them", async ({ browser }) => {
+  const w = await world(browser);
+  const { owner } = w;
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.HelveticaBold);
+  for (const [n, t] of [["A-101", "FIRST FLOOR PLAN"], ["A-102", "SECOND FLOOR PLAN"], ["", ""]]) {
+    const page = doc.addPage([2592, 1728]);
+    if (n) { page.drawText(t, { x: 2080, y: 230, size: 20, font }); page.drawText(n, { x: 2380, y: 90, size: 40, font }); }
+  }
+  const { openProject } = await import("./helpers");
+  await openProject(owner, w, "Drawings");
+  await owner.getByRole("button", { name: "Upload drawing set" }).click();
+  await owner.getByLabel("Drawing set PDF").setInputFiles({ name: "IFC-set.pdf", mimeType: "application/pdf", buffer: Buffer.from(await doc.save()) });
+  const review = owner.getByRole("form", { name: "Review drawing set" });
+  await expect(review.getByLabel("Sheet number page 1")).toHaveValue("A-101");
+  await expect(review.getByLabel("Title page 2")).toHaveValue("SECOND FLOOR PLAN");
+  await expect(review.getByLabel("Sheet number page 3")).toHaveValue(""); // no text layer
+  await review.getByLabel("Include page 3").uncheck();
+  await review.getByLabel("Set name").fill("Issued for construction");
+  await review.getByRole("button", { name: "Publish 2 sheet(s)" }).click();
+  await expect(review.getByText("Published 2 sheet(s), 2 new.")).toBeVisible();
+  await expect(owner.getByRole("link", { name: "A-102" })).toBeVisible();
+});

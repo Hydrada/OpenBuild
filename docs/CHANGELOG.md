@@ -11,6 +11,7 @@
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
 - Correspondence (transmittals, notices, instructions, letters, memos) with acknowledgements.
+- Drawing sets: upload one PDF; sheet numbers and titles are read from each title block for review, then every page is published as a revision of its sheet.
 - Subcontractor invoicing portal, insurance compliance and lien waivers, with payment held until requirements are met.
 - Drawings open in an in-browser viewer with markups (personal or published layers) and a revision compare overlay. Previously the embedded viewer was blocked by the content security policy and only offered a download link.
 - PDF exports for RFIs, submittals, daily logs, minutes, change orders, T&M tickets, pay applications (G702/G703) and the punch list.

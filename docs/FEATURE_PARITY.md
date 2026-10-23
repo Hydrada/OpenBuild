@@ -15,7 +15,7 @@ Sources:
 | Core | Project search | **Done** | One search box across RFIs, submittals, drawings, specs, documents, punch, observations, incidents, inspections, meetings, tasks, change events/orders, contracts, correspondence, coordination issues, action plans, warranties and T&M; results filtered by the caller's permissions |
 | Core | Tasks | **Done** | Assign, due date, status, CSV import/export |
 | Core | Schedule & milestones | **Done** | Activities, milestones, multiple predecessors (FS/SS/FF/SF) with lag, loop prevention, late/conflict flags, critical path with total float, bar chart, dashboard milestones, working calendar (weekdays + holidays), resources with capacity (several per activity, e.g. crew plus pump), minimum-float resource levelling with optional activity splitting (preview/apply), Microsoft Project XML import (also from P6/ProjectLibre), 2–12 week lookahead with day grid, critical bars and short-interval tasks (company, crew size, blocked reason) |
-| Docs | Drawings | **Done** | Sheets, revisions (current set = latest), sets, issue dates, inline PDF viewer, markup sets |
+| Docs | Drawings | **Done** | Sheets, revisions (current set = latest), sets, issue dates, inline PDF viewer, markup sets; multi-sheet set upload that splits the PDF and reads sheet numbers/titles from title blocks for review, revising existing sheets |
 | Docs | Documents | **Done** | Folders, versions, sequential approval |
 | Docs | Specifications | **Done** | MasterFormat sections with optional PDF |
 | Docs | RFIs | **Done** | Numbering, ball-in-court, due/overdue, drawing/spec links, official answer, cost/schedule impact, attachments |
