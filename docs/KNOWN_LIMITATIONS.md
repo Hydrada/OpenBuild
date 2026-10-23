@@ -1,6 +1,6 @@
 # Known limitations (0.2.0, 2026-10-22)
 
-- **Not Procore parity.** See FEATURE_PARITY.md for what is and is not built (BIM is a model register without a 3D viewer or clash detection; scheduling has no resource levelling; no SAML).
+- **Not Procore parity.** See FEATURE_PARITY.md for what is and is not built (BIM is a model register without a 3D viewer or clash detection; resource levelling is serial (one resource per activity) and only delays, never splits, activities; no SAML).
 - **SSO is OpenID Connect only** (Entra ID, Google, Okta, Keycloak…), tested against a mock identity provider; no SAML. Users must be invited first. Password + optional TOTP two-factor with recovery codes remains available.
 - **Login rate limiting is in-memory**, per process — run one app instance per database.
 - **S3 storage** is supported (AWS S3, MinIO, R2, Backblaze) and tested against an S3-compatible test server, not yet against a live AWS account. With S3, the backup CLI copies the database only; use bucket versioning/replication for files.

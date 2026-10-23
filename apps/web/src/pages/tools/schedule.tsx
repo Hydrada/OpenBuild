@@ -8,6 +8,7 @@ import type { ProjectInfo } from "../Project";
 interface Item {
   id: string; name: string; start_date: string; end_date: string; is_milestone: boolean; percent_complete: number;
   predecessor_id: string | null; predecessor_name: string | null; predecessors: { id: string; name: string; lagDays: number; type: string }[]; assignee_id: string | null; assignee_name: string | null;
+  resource_id: string | null; resource_units: number; resource_name: string | null;
   late: boolean; dependency_conflict: boolean; early_start: string; early_finish: string; total_float: number; critical: boolean;
 }
 
@@ -20,6 +21,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [imported, setImported] = useState<string | null>(null);
   const items = list.data;
+  const resources = useApi<any[]>(`/projects/${project.id}/resources`);
   const predOptions = (items ?? []).map((i) => ({ value: i.id, label: i.name }));
 
   const fields = (excludeId?: string) => [
@@ -32,12 +34,15 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
       { value: "FS", label: "Finish → start (FS)" }, { value: "SS", label: "Start → start (SS)" },
       { value: "FF", label: "Finish → finish (FF)" }, { value: "SF", label: "Start → finish (SF)" }] },
     { name: "lagDays", label: "Lag (days)", type: "number" as const, step: "1" },
+    { name: "resourceId", label: "Resource (crew / equipment)", type: "select" as const, options: (resources.data ?? []).map((r) => ({ value: r.id, label: `${r.name} (capacity ${r.capacity})` })) },
+    { name: "resourceUnits", label: "Units used", type: "number" as const, min: "1" },
     { name: "assigneeId", label: "Responsible", type: "select" as const, options },
     { name: "isMilestone", label: "Milestone", type: "checkbox" as const },
   ];
   const body = (v: Record<string, any>) => ({
     name: v.name, startDate: v.startDate, endDate: v.endDate || undefined, isMilestone: !!v.isMilestone,
     percentComplete: v.percentComplete === "" ? 0 : Number(v.percentComplete), predecessors: (v.predecessorIds as string[]).map((id) => ({ id, type: v.linkType || "FS", lagDays: Number(v.lagDays) || 0 })), assigneeId: v.assigneeId || null,
+    resourceId: v.resourceId || null, resourceUnits: Number(v.resourceUnits) || 1,
   });
 
   let chart = null;
@@ -102,6 +107,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
       {!items ? <Loading /> : items.length === 0 ? <Empty>No schedule yet. Add activities and milestones.</Empty> : (
         <>
           <section className="card">{chart}</section>
+          <Resources projectId={project.id} manage={canManage(project.myRole)} onChanged={() => { list.reload(); resources.reload(); }} />
           <section className="card">
             <div className="table-wrap">
               <table className="table">
@@ -111,7 +117,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                   {items.map((i) => editing === i.id ? (
                     <tr key={i.id}><td colSpan={writable ? 10 : 9}>
                       <Form ariaLabel={`Edit ${i.name}`} submitLabel="Save" className="flat" onCancel={() => setEditing(null)} fields={fields(i.id)}
-                        initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorIds: i.predecessors.map((p) => p.id), linkType: i.predecessors[0]?.type ?? "FS", lagDays: String(i.predecessors[0]?.lagDays ?? 0), assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
+                        initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorIds: i.predecessors.map((p) => p.id), linkType: i.predecessors[0]?.type ?? "FS", lagDays: String(i.predecessors[0]?.lagDays ?? 0), resourceId: i.resource_id ?? "", resourceUnits: String(i.resource_units), assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
                         onSubmit={async (v) => { await api("PATCH", `/schedule/${i.id}`, body(v)); setEditing(null); list.reload(); }} />
                     </td></tr>
                   ) : (
@@ -123,7 +129,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                       <td>{fmtDate(i.early_start)}</td>
                       <td>{i.total_float}</td>
                       <td>{i.predecessors.length ? i.predecessors.map((p) => `${p.name} (${p.type}${p.lagDays ? ` ${p.lagDays > 0 ? "+" : ""}${p.lagDays}d` : ""})`).join(", ") : "—"}</td>
-                      <td>{i.assignee_name ?? "—"}</td>
+                      <td>{i.assignee_name ?? "—"}{i.resource_name && <div className="muted small">{i.resource_name} × {i.resource_units}</div>}</td>
                       <td>
                         {i.critical && <span className="badge badge-high" title="Zero float: any delay moves the project finish">Critical</span>}{" "}
                         {i.late && <span className="badge badge-rejected">Late</span>}{" "}
@@ -169,5 +175,36 @@ function CalendarForm({ projectId, onDone, onCancel }: { projectId: string; onDo
         await api("PUT", `/projects/${projectId}/calendar`, { workDays: WEEKDAYS.map((_, i) => i).filter((i) => v[`d${i}`]), holidays });
         onDone();
       }} />
+  );
+}
+
+function Resources({ projectId, manage, onChanged }: { projectId: string; manage: boolean; onChanged: () => void }) {
+  const res = useApi<any[]>(`/projects/${projectId}/resources`);
+  const preview = useApi<{ finishBefore: string; finishAfter: string; changes: any[] }>(manage ? `/projects/${projectId}/schedule/level` : null);
+  return (
+    <section className="card" aria-label="Resources">
+      <h2>Resources</h2>
+      {res.data?.length ? (
+        <ul className="list">{res.data.map((r) => <li key={r.id}><strong>{r.name}</strong> <span className="muted small">capacity {r.capacity}/day · {r.activities} activities</span></li>)}</ul>
+      ) : <p className="empty">No crews or equipment yet.</p>}
+      {manage && (
+        <Form ariaLabel="Add resource" submitLabel="Add resource" className="flat" resetOnSuccess
+          fields={[{ name: "name", label: "Crew or equipment", required: true }, { name: "capacity", label: "Capacity (units per day)", type: "number", min: "1", required: true }]}
+          onSubmit={async (v) => { await api("POST", `/projects/${projectId}/resources`, { name: v.name, capacity: Number(v.capacity) }); res.reload(); onChanged(); }} />
+      )}
+      {manage && preview.data && (
+        <div className="stack">
+          <h3>Levelling</h3>
+          {preview.data.changes.length === 0 ? <p className="muted">No over-allocations — nothing to level.</p> : (
+            <>
+              <ul className="list">{preview.data.changes.map((c) => <li key={c.id}>{c.name}: {fmtDate(c.from)} → <strong>{fmtDate(c.start_date)}</strong></li>)}</ul>
+              <p className="muted small">Project finish {fmtDate(preview.data.finishBefore)} → {fmtDate(preview.data.finishAfter)}</p>
+              <ActionButton className="primary" confirm="Move these activities to the levelled dates?" onClick={async () => { await api("POST", `/projects/${projectId}/schedule/level`); preview.reload(); onChanged(); }}>Apply levelling</ActionButton>
+            </>
+          )}
+        </div>
+      )}
+      <ErrorText error={preview.error} />
+    </section>
   );
 }

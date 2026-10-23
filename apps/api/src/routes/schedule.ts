@@ -3,7 +3,7 @@ import { z } from "zod";
 import { type AppConfig, requireUser } from "../app.js";
 import type { Queryable } from "../db/db.js";
 import { audit } from "../lib/audit.js";
-import { assertAcyclic, criticalPath, type CpmLink, type WorkCalendar } from "../lib/cpm.js";
+import { assertAcyclic, criticalPath, levelResources, type CpmLink, type LevelItem, type WorkCalendar } from "../lib/cpm.js";
 import { HttpError } from "../lib/errors.js";
 import { parseMsProjectXml } from "../lib/msproject.js";
 import { requireProject } from "../lib/permissions.js";
@@ -23,8 +23,10 @@ const input = z.object({
   predecessors: z.array(link).max(50).optional(),
   predecessorId: z.uuid().nullable().optional(),
   assigneeId: z.uuid().nullable().optional(),
+  resourceId: z.uuid().nullable().optional(),
+  resourceUnits: z.number().int().min(1).max(10000).optional(),
 });
-const COLS = { name: "name", startDate: "start_date", endDate: "end_date", isMilestone: "is_milestone", percentComplete: "percent_complete", assigneeId: "assignee_id" };
+const COLS = { name: "name", startDate: "start_date", endDate: "end_date", isMilestone: "is_milestone", percentComplete: "percent_complete", assigneeId: "assignee_id", resourceId: "resource_id", resourceUnits: "resource_units" };
 
 function predecessorsOf(b: z.infer<typeof input> | Partial<z.infer<typeof input>>) {
   if (b.predecessors) return b.predecessors;
@@ -77,8 +79,9 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     const user = requireUser(req);
     await requireProject(db, user.id, req.params.projectId, "read.full");
     const rows = await db.query<{ id: string; start_date: string; end_date: string; percent_complete: number; name: string }>(
-      `SELECT s.id, s.name, s.start_date, s.end_date, s.is_milestone, s.percent_complete, s.assignee_id, s.external_ref, u.name AS assignee_name
-         FROM schedule_items s LEFT JOIN users u ON u.id = s.assignee_id
+      `SELECT s.id, s.name, s.start_date, s.end_date, s.is_milestone, s.percent_complete, s.assignee_id, s.external_ref, u.name AS assignee_name,
+              s.resource_id, s.resource_units, r.name AS resource_name
+         FROM schedule_items s LEFT JOIN users u ON u.id = s.assignee_id LEFT JOIN schedule_resources r ON r.id = s.resource_id
         WHERE s.project_id = $1 ORDER BY s.start_date, s.end_date, s.name`,
       [req.params.projectId],
     );
@@ -132,10 +135,11 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     if (end < b.startDate) throw new HttpError(400, "Finish is before start");
     const row = await db.tx(async (q) => {
       if (b.assigneeId) await assertProjectMember(q, project.id, b.assigneeId);
+      await assertResource(q, project.id, b.resourceId);
       const [r] = await q.query<{ id: string }>(
-        `INSERT INTO schedule_items (project_id, name, start_date, end_date, is_milestone, percent_complete, assignee_id, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-        [project.id, b.name, b.startDate, end, b.isMilestone, b.percentComplete, b.assigneeId ?? null, user.id],
+        `INSERT INTO schedule_items (project_id, name, start_date, end_date, is_milestone, percent_complete, assignee_id, resource_id, resource_units, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [project.id, b.name, b.startDate, end, b.isMilestone, b.percentComplete, b.assigneeId ?? null, b.resourceId ?? null, b.resourceUnits ?? 1, user.id],
       );
       await setLinks(q, project.id, r!.id, predecessorsOf(b) ?? []);
       await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "schedule.create", entityType: "schedule_item", entityId: r!.id, detail: { name: b.name, milestone: b.isMilestone } });
@@ -155,6 +159,7 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     const { sets, values } = toSet({ ...b, endDate: end }, COLS);
     return db.tx(async (q) => {
       if (b.assigneeId) await assertProjectMember(q, row.project_id, b.assigneeId);
+      await assertResource(q, row.project_id, b.resourceId);
       const [r] = await q.query(`UPDATE schedule_items SET ${sets.join(", ")} WHERE id = $1 RETURNING *`, [row.id, ...values]);
       const preds = predecessorsOf(b);
       if (preds) await setLinks(q, row.project_id, row.id, preds);
@@ -170,6 +175,75 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
       await q.query("DELETE FROM schedule_items WHERE id = $1", [row.id]);
       await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: "schedule.delete", entityType: "schedule_item", entityId: row.id, detail: { name: row.name } });
       return { ok: true };
+    });
+  });
+
+  async function assertResource(q: Queryable, projectId: string, resourceId: string | null | undefined) {
+    if (resourceId && !(await q.query("SELECT 1 FROM schedule_resources WHERE id = $1 AND project_id = $2", [resourceId, projectId])).length) {
+      throw new HttpError(400, "Resource not found in this project");
+    }
+  }
+
+  // ---------- Resources and levelling ----------
+
+  app.get<P>("/projects/:projectId/resources", async (req) => {
+    const user = requireUser(req);
+    await requireProject(db, user.id, req.params.projectId, "read.full");
+    return db.query(
+      `SELECT r.id, r.name, r.capacity, (SELECT count(*)::int FROM schedule_items s WHERE s.resource_id = r.id) AS activities
+         FROM schedule_resources r WHERE r.project_id = $1 ORDER BY r.name`,
+      [req.params.projectId],
+    );
+  });
+
+  app.post<P>("/projects/:projectId/resources", async (req, reply) => {
+    const user = requireUser(req);
+    const { project } = await requireProject(db, user.id, req.params.projectId, "record.manage");
+    const b = z.object({ name: z.string().trim().min(1).max(100), capacity: z.number().int().min(1).max(10000) }).parse(req.body);
+    if ((await db.query("SELECT 1 FROM schedule_resources WHERE project_id = $1 AND lower(name) = lower($2)", [project.id, b.name])).length) throw new HttpError(409, "A resource with that name exists");
+    const [r] = await db.query("INSERT INTO schedule_resources (project_id, name, capacity) VALUES ($1, $2, $3) RETURNING *", [project.id, b.name, b.capacity]);
+    await audit(db, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "schedule.resource", entityType: "schedule_resource", entityId: (r as { id: string }).id, detail: b });
+    return reply.code(201).send(r);
+  });
+
+  async function levelling(q: Queryable, projectId: string) {
+    const items = await q.query<LevelItem & { name: string }>("SELECT id, name, start_date, end_date, resource_id, resource_units FROM schedule_items WHERE project_id = $1", [projectId]);
+    if (!items.length) throw new HttpError(400, "The schedule is empty");
+    const caps = await q.query<{ id: string; capacity: number }>("SELECT id, capacity FROM schedule_resources WHERE project_id = $1", [projectId]);
+    try {
+      const out = levelResources(items, await linksFor(q, projectId), new Map(caps.map((c) => [c.id, c.capacity])), await calendarOf(q, projectId));
+      return { items, ...out };
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message);
+    }
+  }
+
+  /** Preview: levelled dates, per-activity delay and the effect on the project finish. Nothing is saved. */
+  app.get<P>("/projects/:projectId/schedule/level", async (req) => {
+    const user = requireUser(req);
+    await requireProject(db, user.id, req.params.projectId, "read.full");
+    const { items, result, finishBefore, finishAfter } = await levelling(db, req.params.projectId);
+    return {
+      finishBefore, finishAfter,
+      changes: items.map((i) => ({ id: i.id, name: i.name, from: i.start_date, ...result.get(i.id)! })).filter((c) => c.start_date !== c.from).sort((a, b) => a.start_date.localeCompare(b.start_date)),
+    };
+  });
+
+  /** Apply the levelled dates to the schedule (recorded in the audit log). */
+  app.post<P>("/projects/:projectId/schedule/level", async (req) => {
+    const user = requireUser(req);
+    const { project } = await requireProject(db, user.id, req.params.projectId, "record.manage");
+    return db.tx(async (q) => {
+      const { items, result, finishBefore, finishAfter } = await levelling(q, project.id);
+      let moved = 0;
+      for (const i of items) {
+        const r = result.get(i.id)!;
+        if (r.start_date === i.start_date && r.end_date === i.end_date) continue;
+        await q.query("UPDATE schedule_items SET start_date = $2, end_date = $3 WHERE id = $1", [i.id, r.start_date, r.end_date]);
+        moved++;
+      }
+      await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "schedule.level", entityType: "project", entityId: project.id, detail: { moved, finishBefore, finishAfter } });
+      return { moved, finishBefore, finishAfter };
     });
   });
 

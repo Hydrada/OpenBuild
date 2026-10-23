@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { criticalPath } from "../src/lib/cpm.js";
+import { criticalPath, levelResources } from "../src/lib/cpm.js";
 import { parseMsProjectXml } from "../src/lib/msproject.js";
 import { Client, inviteAndJoin, makeApp, registerOwner, type App, type Db } from "./helpers.js";
 
@@ -73,6 +73,39 @@ describe("working calendar", () => {
     await owner.post(`${P}/schedule`, { name: "Sheathing", startDate: "2026-06-29", endDate: "2026-06-30", predecessors: [{ id: a.id }] });
     const sheathing = (await owner.get(`${P}/schedule`)).body.find((x: { name: string }) => x.name === "Sheathing");
     expect(sheathing.early_start).toBe("2026-07-06");
+  });
+});
+
+describe("resource levelling", () => {
+  it("delays the activity with more float so a crew is never over-allocated", () => {
+    // Crew of 1. A (5 days) drives D; B (3 days) has float. Both planned on the same days.
+    const items = [
+      { id: "A", start_date: "2026-03-02", end_date: "2026-03-06", resource_id: "crew", resource_units: 1 },
+      { id: "B", start_date: "2026-03-02", end_date: "2026-03-04", resource_id: "crew", resource_units: 1 },
+      { id: "D", start_date: "2026-03-09", end_date: "2026-03-20", resource_id: null, resource_units: 1 },
+    ];
+    const links = [{ successor_id: "D", predecessor_id: "A", lag_days: 0, link_type: "FS" as const }];
+    const { result, finishBefore, finishAfter } = levelResources(items, links, new Map([["crew", 1]]));
+    expect(result.get("A")).toMatchObject({ start_date: "2026-03-02", delay_days: 0 });
+    expect(result.get("B")).toMatchObject({ start_date: "2026-03-07", end_date: "2026-03-09", delay_days: 5 });
+    expect([finishBefore, finishAfter]).toEqual(["2026-03-20", "2026-03-20"]); // B absorbed its float
+    // With capacity 2 nothing moves
+    expect(levelResources(items, links, new Map([["crew", 2]])).result.get("B")!.delay_days).toBe(0);
+    expect(() => levelResources([{ ...items[0]!, resource_units: 3 }], [], new Map([["crew", 2]]))).toThrow(/more units/);
+  });
+
+  it("previews and applies levelling through the API", async () => {
+    const P = `/api/projects/${projectId}`;
+    const crew = (await owner.post(`${P}/resources`, { name: "Concrete crew", capacity: 1 })).body;
+    expect((await owner.post(`${P}/resources`, { name: "concrete crew", capacity: 2 })).status).toBe(409);
+    await owner.post(`${P}/schedule`, { name: "Footings", startDate: "2026-03-02", endDate: "2026-03-06", resourceId: crew.id });
+    await owner.post(`${P}/schedule`, { name: "Slab on grade", startDate: "2026-03-03", endDate: "2026-03-05", resourceId: crew.id });
+    const preview = (await owner.get(`${P}/schedule/level`)).body;
+    expect(preview.changes.map((c: { name: string; start_date: string }) => [c.name, c.start_date])).toEqual([["Slab on grade", "2026-03-07"]]);
+    expect((await owner.post(`${P}/schedule/level`)).body.moved).toBe(1);
+    const slab = (await owner.get(`${P}/schedule`)).body.find((x: { name: string }) => x.name === "Slab on grade");
+    expect(slab).toMatchObject({ start_date: "2026-03-07", end_date: "2026-03-09", resource_name: "Concrete crew" });
+    expect((await owner.get(`${P}/schedule/level`)).body.changes).toEqual([]);
   });
 });
 

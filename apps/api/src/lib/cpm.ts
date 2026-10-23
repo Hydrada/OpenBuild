@@ -124,3 +124,73 @@ export function criticalPath(items: CpmItem[], links: CpmLink[], calendar?: Work
   }
   return out;
 }
+
+export interface LevelItem extends CpmItem { resource_id: string | null; resource_units: number }
+export interface LevelResult { start_date: string; end_date: string; delay_days: number }
+
+/**
+ * Serial resource levelling. Activities are placed in dependency order, picking the ready activity with the
+ * earliest CPM start and then the least float, at the first working day where every link is satisfied (using the
+ * already-levelled dates of its predecessors) and its resource has spare capacity for the whole duration.
+ * Durations, link types, lags and the calendar are preserved; only start dates move later.
+ */
+export function levelResources(items: LevelItem[], links: CpmLink[], capacity: Map<string, number>, calendar?: WorkCalendar): { result: Map<string, LevelResult>; finishBefore: string; finishAfter: string } {
+  const cpm = criticalPath(items, links, calendar);
+  const ids = new Set(items.map((i) => i.id));
+  const valid = links.filter((l) => ids.has(l.successor_id) && ids.has(l.predecessor_id));
+  const lo = Math.min(...items.map((i) => calDay(i.start_date))) - 3650;
+  const hi = Math.max(...items.map((i) => calDay(i.end_date))) + 3650 * 3;
+  const W = workIndex(calendar, lo, hi);
+  const dur = new Map(items.map((i) => [i.id, W.span(i.start_date, i.end_date)]));
+  for (const i of items) {
+    if (i.resource_id && i.resource_units > (capacity.get(i.resource_id) ?? 0)) throw new Error(`"${i.id}" needs more units than its resource has`);
+  }
+  const preds = new Map<string, CpmLink[]>();
+  for (const l of valid) preds.set(l.successor_id, [...(preds.get(l.successor_id) ?? []), l]);
+  const placed = new Map<string, number>(); // id -> levelled start index
+  const usage = new Map<string, Map<number, number>>();
+  const fits = (r: string, cap: number, units: number, s: number, d: number) => {
+    const u = usage.get(r) ?? new Map<number, number>();
+    for (let t = s; t <= s + d; t++) if ((u.get(t) ?? 0) + units > cap) return false;
+    return true;
+  };
+  const book = (r: string, units: number, s: number, d: number) => {
+    const u = usage.get(r) ?? new Map<number, number>();
+    for (let t = s; t <= s + d; t++) u.set(t, (u.get(t) ?? 0) + units);
+    usage.set(r, u);
+  };
+  const result = new Map<string, LevelResult>();
+  while (placed.size < items.length) {
+    const ready = items.filter((i) => !placed.has(i.id) && (preds.get(i.id) ?? []).every((l) => placed.has(l.predecessor_id)));
+    ready.sort((a, b) => {
+      const ca = cpm.get(a.id)!, cb = cpm.get(b.id)!;
+      return ca.early_start.localeCompare(cb.early_start) || ca.total_float - cb.total_float || a.id.localeCompare(b.id);
+    });
+    const it = ready[0]!;
+    const d = dur.get(it.id)!;
+    let s = Math.max(W.idx(it.start_date), ...(preds.get(it.id) ?? []).map((l) => {
+      const ps = placed.get(l.predecessor_id)!;
+      const pf = ps + dur.get(l.predecessor_id)!;
+      switch (l.link_type ?? "FS") {
+        case "SS": return ps + l.lag_days;
+        case "FF": return pf + l.lag_days - d;
+        case "SF": return ps + l.lag_days - d;
+        default: return pf + 1 + l.lag_days;
+      }
+    }));
+    if (it.resource_id) {
+      const cap = capacity.get(it.resource_id)!;
+      let guard = 0;
+      while (!fits(it.resource_id, cap, it.resource_units, s, d)) {
+        s++;
+        if (++guard > 20000) throw new Error("Could not level within the scheduling window");
+      }
+      book(it.resource_id, it.resource_units, s, d);
+    }
+    placed.set(it.id, s);
+    result.set(it.id, { start_date: W.date(s), end_date: W.date(s + d), delay_days: s - W.idx(cpm.get(it.id)!.early_start) });
+  }
+  const finishBefore = [...cpm.values()].map((c) => c.early_finish).sort().at(-1)!;
+  const finishAfter = [...result.values()].map((r) => r.end_date).sort().at(-1)!;
+  return { result, finishBefore, finishAfter };
+}

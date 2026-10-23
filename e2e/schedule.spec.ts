@@ -56,3 +56,19 @@ test("working calendar: weekends and holidays push successors", async ({ browser
   await owner.getByRole("button", { name: "Save calendar" }).click();
   await expect(owner.getByRole("row", { name: /Sheathing/ })).toContainText(new Date("2026-07-06T00:00:00").toLocaleDateString());
 });
+
+test("resource levelling: preview and apply", async ({ browser }) => {
+  const { api } = await import("./helpers");
+  const w = await world(browser);
+  const { owner } = w;
+  const crew = await api(owner).post(`/projects/${w.projectId}/resources`, { name: "Concrete crew", capacity: 1 });
+  await api(owner).post(`/projects/${w.projectId}/schedule`, { name: "Footings", startDate: "2026-03-02", endDate: "2026-03-06", resourceId: crew.id });
+  await api(owner).post(`/projects/${w.projectId}/schedule`, { name: "Slab on grade", startDate: "2026-03-03", endDate: "2026-03-05", resourceId: crew.id });
+  await openProject(owner, w, "Schedule");
+  const panel = owner.getByRole("region", { name: "Resources" });
+  await expect(panel.getByText(/Slab on grade:/)).toBeVisible();
+  await panel.getByRole("button", { name: "Apply levelling" }).click();
+  await owner.getByRole("button", { name: "Confirm" }).click();
+  await expect(panel.getByText("No over-allocations — nothing to level.")).toBeVisible();
+  await expect(owner.getByRole("row", { name: /Slab on grade/ })).toContainText(new Date("2026-03-07T00:00:00").toLocaleDateString());
+});

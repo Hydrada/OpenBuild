@@ -866,4 +866,20 @@ CREATE TABLE project_holidays (
 );
 `,
   },
+  {
+    id: "0016_resources",
+    sql: /* sql */ `
+-- Crews and equipment with a daily capacity, assigned to schedule activities for resource levelling.
+CREATE TABLE schedule_resources (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name       text NOT NULL,
+  capacity   int NOT NULL CHECK (capacity BETWEEN 1 AND 10000),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, name)
+);
+ALTER TABLE schedule_items ADD COLUMN resource_id uuid REFERENCES schedule_resources(id) ON DELETE SET NULL;
+ALTER TABLE schedule_items ADD COLUMN resource_units int NOT NULL DEFAULT 1 CHECK (resource_units BETWEEN 1 AND 10000);
+`,
+  },
 ];
