@@ -58,12 +58,11 @@ describe("schedule and milestones", () => {
     expect((await sub.get(P)).status).toBe(403);
 
     const backup = JSON.parse(JSON.stringify(await exportAll(db)));
-    backup.tables.schedule_items.reverse(); // dependent row first
     const target = await makeApp();
     try {
       await importAll(target.db, backup);
-      const rows = await target.db.query<{ name: string; predecessor_id: string | null }>("SELECT name, predecessor_id FROM schedule_items ORDER BY name");
-      expect(rows[1]!.predecessor_id).toBe(a.id);
+      const rows = await target.db.query<{ predecessor_id: string }>("SELECT predecessor_id FROM schedule_links");
+      expect(rows.map((r) => r.predecessor_id)).toEqual([a.id]);
     } finally {
       await target.app.close();
       await target.db.close();
@@ -76,10 +75,10 @@ describe("critical path", () => {
     const { criticalPath } = await import("../src/lib/cpm.js");
     // A (5 days) -> B (3 days); C (2 days) parallel, no dependency
     const r = criticalPath([
-      { id: "A", start_date: "2026-01-01", end_date: "2026-01-05", predecessor_id: null },
-      { id: "B", start_date: "2026-01-02", end_date: "2026-01-04", predecessor_id: "A" }, // planned too early; pushed to 01-06
-      { id: "C", start_date: "2026-01-01", end_date: "2026-01-02", predecessor_id: null },
-    ]);
+      { id: "A", start_date: "2026-01-01", end_date: "2026-01-05" },
+      { id: "B", start_date: "2026-01-02", end_date: "2026-01-04" }, // planned too early; pushed to 01-06
+      { id: "C", start_date: "2026-01-01", end_date: "2026-01-02" },
+    ], [{ successor_id: "B", predecessor_id: "A", lag_days: 0 }]);
     expect(r.get("B")).toMatchObject({ early_start: "2026-01-06", early_finish: "2026-01-08", total_float: 0, critical: true });
     expect(r.get("A")).toMatchObject({ late_finish: "2026-01-05", critical: true });
     expect(r.get("C")).toMatchObject({ late_finish: "2026-01-08", total_float: 6, critical: false });
@@ -93,5 +92,44 @@ describe("critical path", () => {
     const list = (await owner.get(P)).body;
     expect(list.filter((x: { critical: boolean }) => x.critical).map((x: { name: string }) => x.name)).toEqual(["A", "B"]);
     expect(list.find((x: { name: string }) => x.name === "C").total_float).toBe(8);
+  });
+});
+
+describe("multiple predecessors, lag and MS Project import", () => {
+  it("schedules from the latest predecessor plus lag", async () => {
+    const P = `/api/projects/${projectId}/schedule`;
+    const a = (await owner.post(P, { name: "Steel", startDate: "2026-03-02", endDate: "2026-03-20" })).body;
+    const b = (await owner.post(P, { name: "MEP rough-in", startDate: "2026-03-02", endDate: "2026-03-27" })).body;
+    await owner.post(P, { name: "Drywall", startDate: "2026-04-01", endDate: "2026-04-17", predecessors: [{ id: a.id }, { id: b.id, lagDays: 3 }] });
+    const list = (await owner.get(P)).body;
+    const dry = list.find((x: { name: string }) => x.name === "Drywall");
+    expect(dry.predecessors.map((p: { name: string }) => p.name).sort()).toEqual(["MEP rough-in", "Steel"]);
+    expect(dry.early_start).toBe("2026-04-01"); // MEP ends 03-27, +1 day +3 lag = 03-31 < planned 04-01
+    // Drywall is planned one day after MEP (+3 lag) allows, so MEP has 1 day of float and Steel 11.
+    const float = (n: string) => list.find((x: { name: string }) => x.name === n).total_float;
+    expect([float("Steel"), float("MEP rough-in"), float("Drywall")]).toEqual([11, 1, 0]);
+    expect(dry.critical).toBe(true);
+    expect((await owner.patch(`/api/schedule/${a.id}`, { predecessors: [{ id: dry.id }] })).status).toBe(400); // loop via Drywall
+  });
+
+  it("imports Microsoft Project XML and re-imports without duplicates", async () => {
+    const xml = (finish2: string) => `<?xml version="1.0"?><Project xmlns="http://schemas.microsoft.com/project"><Tasks>
+      <Task><UID>0</UID><Name>Harbor Tower</Name><Start>2026-01-05T08:00:00</Start><Finish>2026-03-01T17:00:00</Finish><Summary>1</Summary></Task>
+      <Task><UID>1</UID><Name>Excavation &amp; shoring</Name><Start>2026-01-05T08:00:00</Start><Finish>2026-01-23T17:00:00</Finish><PercentComplete>100</PercentComplete></Task>
+      <Task><UID>2</UID><Name>Foundations</Name><Start>2026-01-26T08:00:00</Start><Finish>${finish2}</Finish>
+        <PredecessorLink><PredecessorUID>1</PredecessorUID><Type>1</Type><LinkLag>9600</LinkLag></PredecessorLink></Task>
+      <Task><UID>3</UID><Name>Foundations complete</Name><Start>2026-02-20T17:00:00</Start><Finish>2026-02-20T17:00:00</Finish><Milestone>1</Milestone>
+        <PredecessorLink><PredecessorUID>2</PredecessorUID><Type>1</Type></PredecessorLink></Task>
+    </Tasks></Project>`;
+    const P = `/api/projects/${projectId}/schedule`;
+    expect((await owner.post(`${P}/import`, { xml: "<nope/>" })).status).toBe(400);
+    expect((await owner.post(`${P}/import`, { xml: xml("2026-02-20T17:00:00") })).body).toEqual({ created: 3, updated: 0, links: 2 });
+    const list = (await owner.get(P)).body;
+    expect(list.map((x: { name: string }) => x.name)).toEqual(["Excavation & shoring", "Foundations", "Foundations complete"]);
+    const f = list.find((x: { name: string }) => x.name === "Foundations");
+    expect(f.predecessors[0]).toMatchObject({ name: "Excavation & shoring", lagDays: 2 });
+    expect(list.find((x: { name: string }) => x.name === "Foundations complete").is_milestone).toBe(true);
+    expect((await owner.post(`${P}/import`, { xml: xml("2026-02-27T17:00:00") })).body).toEqual({ created: 0, updated: 3, links: 2 });
+    expect((await owner.get(P)).body.find((x: { name: string }) => x.name === "Foundations").end_date).toBe("2026-02-27");
   });
 });

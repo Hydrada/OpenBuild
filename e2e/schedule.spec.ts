@@ -17,7 +17,7 @@ test("schedule: activities, milestone, dependency conflict, dashboard milestone"
   await owner.getByLabel("Activity", { exact: true }).fill("Steel erection");
   await owner.getByLabel("Start", { exact: true }).fill("2026-02-02");
   await owner.getByLabel("Finish (blank for milestone)").fill("2026-03-20");
-  await owner.getByLabel("Depends on").selectOption({ label: "Foundations" });
+  await owner.getByLabel(/Depends on/).selectOption({ label: "Foundations" });
   await owner.getByRole("button", { name: "Add to schedule" }).click();
   await expect(owner.getByText("Dependency conflict")).toBeVisible();
 

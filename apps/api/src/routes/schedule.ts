@@ -3,61 +3,84 @@ import { z } from "zod";
 import { type AppConfig, requireUser } from "../app.js";
 import type { Queryable } from "../db/db.js";
 import { audit } from "../lib/audit.js";
-import { criticalPath, type CpmInput } from "../lib/cpm.js";
+import { assertAcyclic, criticalPath, type CpmLink } from "../lib/cpm.js";
 import { HttpError } from "../lib/errors.js";
+import { parseMsProjectXml } from "../lib/msproject.js";
 import { requireProject } from "../lib/permissions.js";
 import { assertProjectMember, loadInProject, toSet } from "../lib/records.js";
 
 type P = { Params: { projectId: string } };
 type Id = { Params: { id: string } };
 
+const link = z.object({ id: z.uuid(), lagDays: z.number().int().min(-3650).max(3650).default(0) });
 const input = z.object({
   name: z.string().trim().min(1).max(300),
   startDate: z.iso.date(),
   endDate: z.iso.date().optional(),
   isMilestone: z.boolean().default(false),
   percentComplete: z.number().int().min(0).max(100).default(0),
+  /** Finish-to-start predecessors. `predecessorId` is accepted for single-link clients. */
+  predecessors: z.array(link).max(50).optional(),
   predecessorId: z.uuid().nullable().optional(),
   assigneeId: z.uuid().nullable().optional(),
 });
-const COLS = { name: "name", startDate: "start_date", endDate: "end_date", isMilestone: "is_milestone", percentComplete: "percent_complete", predecessorId: "predecessor_id", assigneeId: "assignee_id" };
+const COLS = { name: "name", startDate: "start_date", endDate: "end_date", isMilestone: "is_milestone", percentComplete: "percent_complete", assigneeId: "assignee_id" };
+
+function predecessorsOf(b: z.infer<typeof input> | Partial<z.infer<typeof input>>) {
+  if (b.predecessors) return b.predecessors;
+  if (b.predecessorId !== undefined) return b.predecessorId ? [{ id: b.predecessorId, lagDays: 0 }] : [];
+  return undefined;
+}
 
 export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (app) => {
   const { db } = config;
 
-  /** Schedule with derived flags: late (past finish, not complete) and dependency conflict (starts before predecessor finishes). */
+  async function linksFor(q: Queryable, projectId: string) {
+    return q.query<CpmLink>(
+      `SELECT l.successor_id, l.predecessor_id, l.lag_days FROM schedule_links l JOIN schedule_items s ON s.id = l.successor_id WHERE s.project_id = $1`,
+      [projectId],
+    );
+  }
+
+  /** Schedule with late/conflict flags and critical-path dates and float. */
   app.get<P>("/projects/:projectId/schedule", async (req) => {
     const user = requireUser(req);
     await requireProject(db, user.id, req.params.projectId, "read.full");
-    const rows = await db.query<CpmInput & Record<string, unknown>>(
-      `SELECT s.id, s.name, s.start_date, s.end_date, s.is_milestone, s.percent_complete, s.predecessor_id, s.assignee_id,
-              u.name AS assignee_name, p.name AS predecessor_name,
-              (s.percent_complete < 100 AND s.end_date < current_date) AS late,
-              (p.id IS NOT NULL AND s.start_date <= p.end_date) AS dependency_conflict
-         FROM schedule_items s LEFT JOIN users u ON u.id = s.assignee_id LEFT JOIN schedule_items p ON p.id = s.predecessor_id
+    const rows = await db.query<{ id: string; start_date: string; end_date: string; percent_complete: number; name: string }>(
+      `SELECT s.id, s.name, s.start_date, s.end_date, s.is_milestone, s.percent_complete, s.assignee_id, s.external_ref, u.name AS assignee_name
+         FROM schedule_items s LEFT JOIN users u ON u.id = s.assignee_id
         WHERE s.project_id = $1 ORDER BY s.start_date, s.end_date, s.name`,
       [req.params.projectId],
     );
     if (!rows.length) return rows;
-    const cpm = criticalPath(rows);
-    return rows.map((r) => ({ ...r, ...cpm.get(r.id)! }));
+    const links = await linksFor(db, req.params.projectId);
+    const cpm = criticalPath(rows, links);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const today = new Date().toISOString().slice(0, 10);
+    return rows.map((r) => {
+      const preds = links.filter((l) => l.successor_id === r.id).map((l) => ({ id: l.predecessor_id, name: byId.get(l.predecessor_id)!.name, lagDays: l.lag_days }));
+      const conflict = links.some((l) => l.successor_id === r.id && day(r.start_date) <= day(byId.get(l.predecessor_id)!.end_date) + l.lag_days);
+      return {
+        ...r, predecessors: preds,
+        // Single-link fields kept for older clients.
+        predecessor_id: preds[0]?.id ?? null, predecessor_name: preds.map((p) => p.name).join(", ") || null,
+        late: r.percent_complete < 100 && r.end_date < today, dependency_conflict: conflict, ...cpm.get(r.id)!,
+      };
+    });
   });
 
-  async function validate(q: Queryable, projectId: string, selfId: string | null, b: { predecessorId?: string | null; assigneeId?: string | null }) {
-    if (b.assigneeId) await assertProjectMember(q, projectId, b.assigneeId);
-    if (b.predecessorId) {
-      if (b.predecessorId === selfId) throw new HttpError(400, "An item cannot depend on itself");
-      const [p] = await q.query("SELECT 1 FROM schedule_items WHERE id = $1 AND project_id = $2", [b.predecessorId, projectId]);
-      if (!p) throw new HttpError(400, "Predecessor not found in this project");
-      if (selfId) {
-        // Walk the chain upward to refuse cycles.
-        let cur: string | null = b.predecessorId;
-        for (let i = 0; cur && i < 1000; i++) {
-          if (cur === selfId) throw new HttpError(400, "That dependency would create a loop");
-          const rows: { predecessor_id: string | null }[] = await q.query("SELECT predecessor_id FROM schedule_items WHERE id = $1", [cur]);
-          cur = rows[0]?.predecessor_id ?? null;
-        }
-      }
+  async function setLinks(q: Queryable, projectId: string, selfId: string, preds: { id: string; lagDays: number }[]) {
+    for (const p of preds) {
+      if (p.id === selfId) throw new HttpError(400, "An item cannot depend on itself");
+      if (!(await q.query("SELECT 1 FROM schedule_items WHERE id = $1 AND project_id = $2", [p.id, projectId])).length) throw new HttpError(400, "Predecessor not found in this project");
+    }
+    await q.query("DELETE FROM schedule_links WHERE successor_id = $1", [selfId]);
+    for (const p of preds) await q.query("INSERT INTO schedule_links (successor_id, predecessor_id, lag_days) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [selfId, p.id, p.lagDays]);
+    const ids = (await q.query<{ id: string }>("SELECT id FROM schedule_items WHERE project_id = $1", [projectId])).map((r) => r.id);
+    try {
+      assertAcyclic(ids, await linksFor(q, projectId));
+    } catch {
+      throw new HttpError(400, "That dependency would create a loop");
     }
   }
 
@@ -68,12 +91,13 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     const end = b.isMilestone ? b.startDate : b.endDate ?? b.startDate;
     if (end < b.startDate) throw new HttpError(400, "Finish is before start");
     const row = await db.tx(async (q) => {
-      await validate(q, project.id, null, b);
+      if (b.assigneeId) await assertProjectMember(q, project.id, b.assigneeId);
       const [r] = await q.query<{ id: string }>(
-        `INSERT INTO schedule_items (project_id, name, start_date, end_date, is_milestone, percent_complete, predecessor_id, assignee_id, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-        [project.id, b.name, b.startDate, end, b.isMilestone, b.percentComplete, b.predecessorId ?? null, b.assigneeId ?? null, user.id],
+        `INSERT INTO schedule_items (project_id, name, start_date, end_date, is_milestone, percent_complete, assignee_id, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [project.id, b.name, b.startDate, end, b.isMilestone, b.percentComplete, b.assigneeId ?? null, user.id],
       );
+      await setLinks(q, project.id, r!.id, predecessorsOf(b) ?? []);
       await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "schedule.create", entityType: "schedule_item", entityId: r!.id, detail: { name: b.name, milestone: b.isMilestone } });
       return r;
     });
@@ -90,8 +114,10 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     if (end < start) throw new HttpError(400, "Finish is before start");
     const { sets, values } = toSet({ ...b, endDate: end }, COLS);
     return db.tx(async (q) => {
-      await validate(q, row.project_id, row.id, b);
+      if (b.assigneeId) await assertProjectMember(q, row.project_id, b.assigneeId);
       const [r] = await q.query(`UPDATE schedule_items SET ${sets.join(", ")} WHERE id = $1 RETURNING *`, [row.id, ...values]);
+      const preds = predecessorsOf(b);
+      if (preds) await setLinks(q, row.project_id, row.id, preds);
       await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: "schedule.update", entityType: "schedule_item", entityId: row.id, detail: b });
       return r;
     });
@@ -106,4 +132,56 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
       return { ok: true };
     });
   });
+
+  /**
+   * Import a Microsoft Project XML schedule (also produced by P6, ProjectLibre, GanttProject).
+   * Re-importing the same file updates activities matched by their source UID instead of duplicating them.
+   */
+  app.post<P>("/projects/:projectId/schedule/import", async (req, reply) => {
+    const user = requireUser(req);
+    const { project } = await requireProject(db, user.id, req.params.projectId, "record.manage");
+    const b = z.object({ xml: z.string().min(1).max(20_000_000) }).parse(req.body);
+    let tasks;
+    try {
+      tasks = parseMsProjectXml(b.xml);
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message);
+    }
+    if (!tasks.length) throw new HttpError(400, "No activities found in the file");
+    const result = await db.tx(async (q) => {
+      const idByUid = new Map<string, string>();
+      let created = 0, updated = 0;
+      for (const t of tasks) {
+        const ref = `msp:${t.uid}`;
+        const [existing] = await q.query<{ id: string }>("SELECT id FROM schedule_items WHERE project_id = $1 AND external_ref = $2", [project.id, ref]);
+        const end = t.milestone ? t.start : t.finish;
+        if (existing) {
+          await q.query("UPDATE schedule_items SET name = $2, start_date = $3, end_date = $4, is_milestone = $5, percent_complete = $6 WHERE id = $1", [existing.id, t.name, t.start, end, t.milestone, t.percent]);
+          idByUid.set(t.uid, existing.id);
+          updated++;
+        } else {
+          const [r] = await q.query<{ id: string }>(
+            `INSERT INTO schedule_items (project_id, name, start_date, end_date, is_milestone, percent_complete, external_ref, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+            [project.id, t.name, t.start, end, t.milestone, t.percent, ref, user.id],
+          );
+          idByUid.set(t.uid, r!.id);
+          created++;
+        }
+      }
+      let links = 0;
+      for (const t of tasks) {
+        const preds = t.predecessors.filter((p) => idByUid.has(p.uid)).map((p) => ({ id: idByUid.get(p.uid)!, lagDays: p.lagDays }));
+        await q.query("DELETE FROM schedule_links WHERE successor_id = $1", [idByUid.get(t.uid)]);
+        for (const p of preds) await q.query("INSERT INTO schedule_links (successor_id, predecessor_id, lag_days) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [idByUid.get(t.uid), p.id, p.lagDays]);
+        links += preds.length;
+      }
+      const ids = (await q.query<{ id: string }>("SELECT id FROM schedule_items WHERE project_id = $1", [project.id])).map((r) => r.id);
+      try { assertAcyclic(ids, await linksFor(q, project.id)); } catch { throw new HttpError(400, "The imported schedule contains a dependency loop"); }
+      await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "schedule.import", entityType: "project", entityId: project.id, detail: { created, updated, links } });
+      return { created, updated, links };
+    });
+    return reply.code(201).send(result);
+  });
 };
+
+const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000;

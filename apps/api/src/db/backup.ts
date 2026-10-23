@@ -12,7 +12,7 @@ export const TABLE_ORDER = [
   "observations", "incidents",
   "cost_codes", "budget_lines", "budget_modifications", "contracts", "contract_lines",
   "change_events", "change_event_lines", "change_orders", "change_order_lines", "invoices", "invoice_lines",
-  "schedule_items", "meetings", "meeting_items", "timesheet_entries", "bid_packages", "bidders", "bim_models", "bim_model_versions", "custom_field_defs", "custom_field_values", "audit_log",
+  "schedule_items", "schedule_links", "meetings", "meeting_items", "timesheet_entries", "bid_packages", "bidders", "bid_package_files", "bim_models", "bim_model_versions", "custom_field_defs", "custom_field_values", "audit_log",
 ] as const;
 
 export interface Backup {
@@ -52,16 +52,11 @@ export async function importAll(db: Db, backup: Backup): Promise<Record<string, 
   await db.tx(async (q) => {
     for (const t of TABLE_ORDER) {
       const rows = backup.tables[t] ?? [];
-      // Self-referencing rows (schedule predecessors) are linked after every row exists.
-      const deferred: [string, unknown][] = [];
-      for (const original of rows) {
-        const row = { ...original };
-        if (t === "schedule_items" && row.predecessor_id) { deferred.push([row.id as string, row.predecessor_id]); row.predecessor_id = null; }
+      for (const row of rows) {
         const cols = Object.keys(row);
         const values = cols.map((c) => (isJson.has(`${t}.${c}`) && row[c] !== null ? JSON.stringify(row[c]) : row[c]));
         await q.query(`INSERT INTO ${t} (${cols.map((c) => `"${c}"`).join(", ")}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(", ")})`, values);
       }
-      for (const [id, pred] of deferred) await q.query("UPDATE schedule_items SET predecessor_id = $2 WHERE id = $1", [id, pred]);
       counts[t] = rows.length;
     }
     await q.query(`SELECT setval(pg_get_serial_sequence('audit_log', 'id'), coalesce((SELECT max(id) FROM audit_log), 0) + 1, false)`);

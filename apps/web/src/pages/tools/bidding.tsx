@@ -60,6 +60,13 @@ export function BidPackagePage({ id }: { id: string }) {
             : <ActionButton onClick={async () => { await api("POST", `/bid-packages/${b.id}/status`, { status: "open" }); r.reload(); }}>Reopen bidding</ActionButton>
         )} />
       {b.scope && <section className="card"><h2>Scope</h2><p className="pre">{b.scope}</p></section>}
+      <section className="card" aria-label="Planroom">
+        <h2>Planroom <span className="muted small">documents bidders can download from their link</span></h2>
+        {b.files.length ? <ul className="list">{b.files.map((f: any) => (
+          <li key={f.id}><a href={`/api/files/${f.id}/download`}>{f.name}</a>{manage && <> <ActionButton className="link danger" onClick={async () => { await api("DELETE", `/bid-packages/${b.id}/files/${f.id}`); r.reload(); }}>Remove</ActionButton></>}</li>
+        ))}</ul> : <p className="empty">Nothing shared yet.</p>}
+        {manage && <SharePicker projectId={b.project_id} packageId={b.id} onShared={r.reload} />}
+      </section>
       {b.contract_id && <p className="notice">Awarded — <Link to={`/contracts/${b.contract_id}`}>subcontract #{b.contract_number}</Link> created as a draft for review and approval.</p>}
       <section className="card" aria-label="Bid leveling">
         <h2>Bid leveling {b.low_bid && <span className="muted small">low bid <Money value={b.low_bid} /></span>}</h2>
@@ -86,6 +93,21 @@ export function BidPackagePage({ id }: { id: string }) {
   );
 }
 
+function SharePicker({ projectId, packageId, onShared }: { projectId: string; packageId: string; onShared: () => void }) {
+  const drawings = useApi<any[]>(`/projects/${projectId}/drawings`);
+  const specs = useApi<any[]>(`/projects/${projectId}/specs`);
+  const options = [
+    ...(drawings.data ?? []).filter((d) => d.current_file_id).map((d) => ({ value: d.current_file_id, label: `Drawing ${d.number} ${d.title} (rev ${d.current_revision})` })),
+    ...(specs.data ?? []).filter((s) => s.file_id).map((s) => ({ value: s.file_id, label: `Spec ${s.number} ${s.title}` })),
+  ];
+  if (!options.length) return <p className="muted small">Upload drawings or spec sections to share them here.</p>;
+  return (
+    <Form ariaLabel="Share with bidders" submitLabel="Share" className="flat" resetOnSuccess
+      fields={[{ name: "fileIds", label: "Drawings and specifications", type: "multiselect", options, required: true }]}
+      onSubmit={async (v) => { for (const fileId of v.fileIds as string[]) await api("POST", `/bid-packages/${packageId}/files`, { fileId }); onShared(); }} />
+  );
+}
+
 /** Public page for invited bidders; reached by token link without signing in. */
 export function BidPage({ token }: { token: string }) {
   const r = useApi(`/bids/${encodeURIComponent(token)}`);
@@ -101,6 +123,12 @@ export function BidPage({ token }: { token: string }) {
             <h2>Bid: {x.title}</h2>
             <KeyValues items={[["Invited by", x.organization], ["Project", x.project], ["Bidder", x.company], ["Due", fmtDateTime(x.dueAt)], ["Your current bid", x.status === "submitted" ? <Money value={x.amount} /> : x.status === "declined" ? "Declined" : "Not submitted"]]} />
             {x.scope && <section className="card"><h2>Scope</h2><p className="pre">{x.scope}</p></section>}
+            {x.files.length > 0 && (
+              <section className="card" aria-label="Bid documents">
+                <h2>Bid documents</h2>
+                <ul className="list">{x.files.map((f: any) => <li key={f.id}><a href={`/api/bids/${encodeURIComponent(token)}/files/${f.id}`}>{f.name}</a></li>)}</ul>
+              </section>
+            )}
             {done && <p className="notice" role="status">{done}</p>}
             {x.open ? (
               <>

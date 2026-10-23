@@ -803,4 +803,28 @@ CREATE TABLE bim_model_versions (
 );
 `,
   },
+  {
+    id: "0013_schedule_links_planroom",
+    sql: /* sql */ `
+-- Many-to-many finish-to-start dependencies replace the single predecessor column.
+CREATE TABLE schedule_links (
+  successor_id   uuid NOT NULL REFERENCES schedule_items(id) ON DELETE CASCADE,
+  predecessor_id uuid NOT NULL REFERENCES schedule_items(id) ON DELETE CASCADE,
+  lag_days       int NOT NULL DEFAULT 0 CHECK (lag_days BETWEEN -3650 AND 3650),
+  PRIMARY KEY (successor_id, predecessor_id),
+  CHECK (successor_id <> predecessor_id)
+);
+INSERT INTO schedule_links (successor_id, predecessor_id) SELECT id, predecessor_id FROM schedule_items WHERE predecessor_id IS NOT NULL;
+ALTER TABLE schedule_items DROP COLUMN predecessor_id;
+ALTER TABLE schedule_items ADD COLUMN external_ref text;
+
+-- Planroom: documents shared with bidders through their private bid link.
+CREATE TABLE bid_package_files (
+  package_id uuid NOT NULL REFERENCES bid_packages(id) ON DELETE CASCADE,
+  file_id    uuid NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (package_id, file_id)
+);
+`,
+  },
 ];

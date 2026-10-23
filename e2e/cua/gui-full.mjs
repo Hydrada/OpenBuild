@@ -31,6 +31,8 @@ const fixtures = join(outDir, "fixtures");
 mkdirSync(fixtures, { recursive: true });
 const pdfPath = join(fixtures, "A-101.pdf");
 writeFileSync(pdfPath, "%PDF-1.4\n% OpenBuild CUA fixture\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
+const ifcPath = join(fixtures, "tower.ifc");
+writeFileSync(ifcPath, ["ISO-10303-21;", "HEADER;", "FILE_SCHEMA(('IFC4'));", "ENDSEC;", "DATA;", ...Array.from({ length: 12 }, (_, i) => `#${i + 10}=IFCWALL('w${i}',$,'Wall',$,$,$,$,$,$);`), "ENDSEC;", "END-ISO-10303-21;"].join(String.fromCharCode(10)));
 const jpgPath = join(fixtures, "embeds.jpg");
 writeFileSync(jpgPath, Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 0xff, 0xd9]));
 
@@ -303,6 +305,36 @@ try {
     const csvPath = dl.path ?? dl.file_path ?? (dl.download_id ? join(outDir, dl.download_id) : null);
     const csv = csvPath ? readFileSync(csvPath, "utf8") : "";
     check("export budget CSV", csv.startsWith("Cost code,Description,Original budget") && csv.includes("08-710"), csvPath ?? JSON.stringify(dl).slice(0, 200));
+
+    // ---- BIM model upload (GUI)
+    await go(`/projects/${projectId}/models`);
+    await click("button", "Upload model", 'textbox "Model name (same name adds a version)"');
+    await type("Model name (same name adds a version)", "Architecture", "textbox");
+    await files("IFC file", [ifcPath]);
+    await click("button", "Upload", "12 walls");
+    await look("models");
+    check("upload BIM model and read its elements", has("12 walls") && has("IFC4"));
+
+    // ---- Bidding: package (cost code via API: dropdown), invite, bidder submits, award (GUI)
+    const pkg = await apiCall("POST", `/api/projects/${projectId}/bid-packages`, { title: "Painting", costCodeId: hw, dueAt: new Date(Date.now() + 7 * 86_400_000).toISOString() });
+    await go(`/bid-packages/${pkg.id}`);
+    await type("Company", "Alpha Painting", "textbox");
+    await type("Estimator email", "est@alpha.test", "textbox");
+    await click("button", "Invite bidder", "Bid link");
+    const bidLink = snap.refs.find((r) => r.name === "Bid link")?.value;
+    await click("button", "Sign out", 'button "Sign in"');
+    await c.call("browser_navigate", { ...T, url: bidLink });
+    await look();
+    await until(() => has("Lump-sum amount"));
+    await type("Lump-sum amount (USD)", "48,250.00", "textbox");
+    await click("button", "Submit bid", "your bid was received");
+    check("bidder submits through private link without an account", has("your bid was received"));
+    await signIn(OWNER.email, OWNER.password);
+    await go(`/bid-packages/${pkg.id}`);
+    await click("button", "Award", 'button "Confirm"');
+    await click("button", "Confirm", "Awarded");
+    await look("bid-award");
+    check("award bid creates subcontract", has("Awarded") && has("$48,250.00"));
 
     // ---- Subcontractor accepts invite and sees a restricted project
     await go("/");

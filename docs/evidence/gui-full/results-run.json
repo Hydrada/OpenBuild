@@ -7,7 +7,7 @@
   {
     "name": "create project",
     "ok": true,
-    "detail": "78238792-b23d-4586-b4f3-336e824de9ab"
+    "detail": "bcee2c3a-be9b-4161-8325-7332c73cefdd"
   },
   {
     "name": "invite user",
@@ -97,7 +97,22 @@
   {
     "name": "export budget CSV",
     "ok": true,
-    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\68f35eca-52c9-483e-83ad-8e180476c973"
+    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\5820be67-6866-4329-b1ed-94d4d2ac61b2"
+  },
+  {
+    "name": "upload BIM model and read its elements",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "bidder submits through private link without an account",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "award bid creates subcontract",
+    "ok": true,
+    "detail": ""
   },
   {
     "name": "add subcontractor to project (via API: dropdown)",

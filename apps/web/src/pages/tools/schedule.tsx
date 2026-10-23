@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { api, fmtDate } from "../../api";
-import { canWrite, useMemberOptions } from "../../components/records";
+import { canManage, canWrite, useMemberOptions } from "../../components/records";
 import { ActionButton, Creator, Empty, ErrorText, Form, Loading } from "../../components/ui";
 import { useApi } from "../../hooks";
 import type { ProjectInfo } from "../Project";
 
 interface Item {
   id: string; name: string; start_date: string; end_date: string; is_milestone: boolean; percent_complete: number;
-  predecessor_id: string | null; predecessor_name: string | null; assignee_id: string | null; assignee_name: string | null;
+  predecessor_id: string | null; predecessor_name: string | null; predecessors: { id: string; name: string; lagDays: number }[]; assignee_id: string | null; assignee_name: string | null;
   late: boolean; dependency_conflict: boolean; early_start: string; early_finish: string; total_float: number; critical: boolean;
 }
 
@@ -18,6 +18,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
   const writable = canWrite(project.myRole);
   const { options } = useMemberOptions(project.id);
   const [editing, setEditing] = useState<string | null>(null);
+  const [imported, setImported] = useState<string | null>(null);
   const items = list.data;
   const predOptions = (items ?? []).map((i) => ({ value: i.id, label: i.name }));
 
@@ -26,13 +27,13 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
     { name: "startDate", label: "Start", type: "date" as const, required: true },
     { name: "endDate", label: "Finish (blank for milestone)", type: "date" as const },
     { name: "percentComplete", label: "% complete", type: "number" as const, min: "0", max: "100", step: "1" },
-    { name: "predecessorId", label: "Depends on", type: "select" as const, options: predOptions.filter((o) => o.value !== excludeId) },
+    { name: "predecessorIds", label: "Depends on (finish-to-start; Ctrl/Cmd-click for several)", type: "multiselect" as const, options: predOptions.filter((o) => o.value !== excludeId) },
     { name: "assigneeId", label: "Responsible", type: "select" as const, options },
     { name: "isMilestone", label: "Milestone", type: "checkbox" as const },
   ];
   const body = (v: Record<string, any>) => ({
     name: v.name, startDate: v.startDate, endDate: v.endDate || undefined, isMilestone: !!v.isMilestone,
-    percentComplete: v.percentComplete === "" ? 0 : Number(v.percentComplete), predecessorId: v.predecessorId || null, assigneeId: v.assigneeId || null,
+    percentComplete: v.percentComplete === "" ? 0 : Number(v.percentComplete), predecessors: (v.predecessorIds as string[]).map((id) => ({ id })), assigneeId: v.assigneeId || null,
   });
 
   let chart = null;
@@ -69,6 +70,15 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
     <>
       <div className="tool-bar">
         <h2 className="tool-title">Schedule</h2>
+        {canManage(project.myRole) && (
+          <Creator label="Import MS Project XML">
+            {(close) => (
+              <Form ariaLabel="Import schedule" submitLabel="Import" onCancel={close}
+                fields={[{ name: "file", label: "Microsoft Project XML (also from P6, ProjectLibre, GanttProject)", type: "file", accept: ".xml,text/xml", required: true }]}
+                onSubmit={async (v) => { const r = await api("POST", `/projects/${project.id}/schedule/import`, { xml: await (v.file as File).text() }); setImported(`Imported: ${r.created} new, ${r.updated} updated, ${r.links} links`); close(); list.reload(); }} />
+            )}
+          </Creator>
+        )}
         {writable && (
           <Creator label="Add activity">
             {(close) => (
@@ -79,6 +89,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
         )}
       </div>
       <ErrorText error={list.error} />
+      {imported && <p className="notice" role="status">{imported}</p>}
       {!items ? <Loading /> : items.length === 0 ? <Empty>No schedule yet. Add activities and milestones.</Empty> : (
         <>
           <section className="card">{chart}</section>
@@ -91,7 +102,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                   {items.map((i) => editing === i.id ? (
                     <tr key={i.id}><td colSpan={writable ? 9 : 8}>
                       <Form ariaLabel={`Edit ${i.name}`} submitLabel="Save" className="flat" onCancel={() => setEditing(null)} fields={fields(i.id)}
-                        initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorId: i.predecessor_id ?? "", assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
+                        initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorIds: i.predecessors.map((p) => p.id), assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
                         onSubmit={async (v) => { await api("PATCH", `/schedule/${i.id}`, body(v)); setEditing(null); list.reload(); }} />
                     </td></tr>
                   ) : (
@@ -101,7 +112,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                       <td>{i.is_milestone ? "—" : fmtDate(i.end_date)}</td>
                       <td>{i.percent_complete}</td>
                       <td>{i.total_float}</td>
-                      <td>{i.predecessor_name ?? "—"}</td>
+                      <td>{i.predecessors.length ? i.predecessors.map((p) => `${p.name}${p.lagDays ? ` +${p.lagDays}d` : ""}`).join(", ") : "—"}</td>
                       <td>{i.assignee_name ?? "—"}</td>
                       <td>
                         {i.critical && <span className="badge badge-high" title="Zero float: any delay moves the project finish">Critical</span>}{" "}

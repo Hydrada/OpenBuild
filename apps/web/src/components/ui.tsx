@@ -97,7 +97,7 @@ export function DataTable<T extends { id?: string }>({ rows, columns, href, empt
   );
 }
 
-export type FieldType = "text" | "textarea" | "date" | "number" | "select" | "checkbox" | "datetime-local" | "email" | "password" | "file" | "money";
+export type FieldType = "text" | "textarea" | "date" | "number" | "select" | "multiselect" | "checkbox" | "datetime-local" | "email" | "password" | "file" | "money";
 export interface FieldSpec {
   name: string;
   label: string;
@@ -118,7 +118,7 @@ export function Form({ fields, initial = {}, submitLabel, onSubmit, onCancel, re
   fields: FieldSpec[]; initial?: FormValues; submitLabel: string; onSubmit: (v: FormValues) => Promise<unknown>;
   onCancel?: () => void; resetOnSuccess?: boolean; ariaLabel?: string; children?: ReactNode; className?: string;
 }) {
-  const blank = () => Object.fromEntries(fields.map((f) => [f.name, initial[f.name] ?? (f.type === "checkbox" ? false : f.type === "file" ? null : "")]));
+  const blank = () => Object.fromEntries(fields.map((f) => [f.name, initial[f.name] ?? (f.type === "checkbox" ? false : f.type === "file" ? null : f.type === "multiselect" ? [] : "")]));
   const [v, setV] = useState<FormValues>(blank);
   const [formKey, setFormKey] = useState(0);
   const uid = useId();
@@ -148,6 +148,13 @@ export function Form({ fields, initial = {}, submitLabel, onSubmit, onCancel, re
               <select {...common} value={v[f.name]} onChange={(e) => set(f.name, e.target.value)}>
                 {/* Required selects without a value get a non-selectable prompt so the shown choice always matches state. */}
                 {!f.required ? <option value="">—</option> : v[f.name] === "" && <option value="" disabled>Choose…</option>}
+                {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            );
+            break;
+          case "multiselect":
+            input = (
+              <select {...common} multiple size={Math.min(5, Math.max(2, f.options?.length ?? 2))} value={v[f.name]} onChange={(e) => set(f.name, [...e.target.selectedOptions].map((o) => o.value))}>
                 {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             );

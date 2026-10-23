@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Client, inviteAndJoin, makeApp, registerOwner, type App, type Db } from "./helpers.js";
+import { Client, PDF, inviteAndJoin, makeApp, registerOwner, type App, type Db } from "./helpers.js";
 
 let app: App;
 let db: Db;
@@ -29,7 +29,15 @@ describe("bidding", () => {
       const r = (await owner.post(`/api/bid-packages/${pkg.id}/bidders`, { company, email: `${company.split(" ")[0]!.toLowerCase()}@bid.test` })).body;
       links[company] = r.bidPath.split("/").pop();
     }
+    // Planroom: share the drawing set; only shared files are downloadable through the bid link
+    const sheet = await owner.upload(`/api/projects/${projectId}/drawings`, { number: "A-501", title: "Finish plan", revision: "0" }, { name: "A-501.pdf", type: "application/pdf", data: PDF("finish plan") });
+    const sheetFile = (await owner.get(`/api/drawings/${sheet.body.drawingId}`)).body.revisions[0].file_id;
+    const secret = (await owner.upload(`/api/projects/${projectId}/files`, {}, { name: "budget.xlsx", type: "application/octet-stream", data: "internal" })).body;
+    expect((await owner.post(`/api/bid-packages/${pkg.id}/files`, { fileId: sheetFile })).status).toBe(201);
     const anon = new Client(app); // bidders have no account and no CSRF header requirement
+    expect((await anon.get(`/api/bids/${links["Alpha Painting"]}`)).body.files.map((f: { name: string }) => f.name)).toEqual(["A-501.pdf"]);
+    expect((await anon.raw(`/api/bids/${links["Alpha Painting"]}/files/${sheetFile}`)).body).toContain("finish plan");
+    expect((await anon.raw(`/api/bids/${links["Alpha Painting"]}/files/${secret.id}`)).statusCode).toBe(404);
     const send = (token: string, body: unknown) => app.inject({ method: "POST", url: `/api/bids/${token}`, payload: body as object });
     expect((await anon.get(`/api/bids/${links["Alpha Painting"]}`)).body).toMatchObject({ title: "Painting", company: "Alpha Painting", open: true, organization: "Acme Builders" });
     expect((await send(links["Alpha Painting"]!, { amount: "120,500.00", notes: "Two coats" })).statusCode).toBe(200);

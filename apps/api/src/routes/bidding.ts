@@ -71,8 +71,13 @@ export const biddingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
     );
     const low = bidders.filter((x) => x.status === "submitted" && x.amount !== null).map((x) => new D(x.amount!));
     const lowest = low.length ? D.min(...low) : null;
+    const files = await db.query(
+      `SELECT f.id, f.name, f.size FROM bid_package_files bf JOIN files f ON f.id = bf.file_id WHERE bf.package_id = $1 ORDER BY f.name`,
+      [row.id],
+    );
     return {
       ...pkg,
+      files,
       bidders: bidders.map((x) => ({
         ...x,
         over_low: lowest && x.amount !== null && x.status === "submitted" ? fmt(new D(x.amount).minus(lowest)) : null,
@@ -100,6 +105,27 @@ export const biddingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
       emailSent = await config.mailer(b.email, `Invitation to bid: ${row.title}`, `${b.company} is invited to bid on "${row.title}".\n\nSubmit by ${new Date(row.due_at).toUTCString()}: ${config.baseUrl}${bidPath}`).then(() => true, () => false);
     }
     return reply.code(201).send({ id: bidder.id, bidPath, emailSent });
+  });
+
+  /** Planroom: share a project file (drawing sheet, spec, document version) with this package's bidders. */
+  app.post<Id>("/bid-packages/:id/files", async (req, reply) => {
+    const user = requireUser(req);
+    const { row, access } = await loadInProject<{ id: string; project_id: string }>(db, "bid_packages", req.params.id, user.id, "record.manage", "Bid package");
+    const b = z.object({ fileId: z.uuid() }).parse(req.body);
+    const [f] = await db.query<{ name: string }>("SELECT name FROM files WHERE id = $1 AND project_id = $2", [b.fileId, row.project_id]);
+    if (!f) throw new HttpError(400, "File not found in this project");
+    await db.tx(async (q) => {
+      await q.query("INSERT INTO bid_package_files (package_id, file_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", [row.id, b.fileId]);
+      await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: "bid_package.share_file", entityType: "bid_package", entityId: row.id, detail: { file: f.name } });
+    });
+    return reply.code(201).send({ ok: true });
+  });
+
+  app.delete<{ Params: { id: string; fileId: string } }>("/bid-packages/:id/files/:fileId", async (req) => {
+    const user = requireUser(req);
+    const { row } = await loadInProject<{ id: string; project_id: string }>(db, "bid_packages", req.params.id, user.id, "record.manage", "Bid package");
+    await db.query("DELETE FROM bid_package_files WHERE package_id = $1 AND file_id::text = $2", [row.id, req.params.fileId]);
+    return { ok: true };
   });
 
   app.post<Id>("/bid-packages/:id/status", async (req) => {
@@ -139,8 +165,8 @@ export const biddingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
   // ---------- Bidder portal (token link, no account) ----------
 
   async function findBidder(token: string) {
-    const [x] = await db.query<{ id: string; company: string; status: string; amount: string | null; notes: string | null; title: string; scope: string | null; due_at: string; package_status: string; project_name: string; org_name: string; past_due: boolean }>(
-      `SELECT x.id, x.company, x.status, x.amount::text, x.notes, b.title, b.scope, b.due_at, b.status AS package_status,
+    const [x] = await db.query<{ id: string; package_id: string; company: string; status: string; amount: string | null; notes: string | null; title: string; scope: string | null; due_at: string; package_status: string; project_name: string; org_name: string; past_due: boolean }>(
+      `SELECT x.id, x.package_id, x.company, x.status, x.amount::text, x.notes, b.title, b.scope, b.due_at, b.status AS package_status,
               p.name AS project_name, o.name AS org_name, b.due_at < now() AS past_due
          FROM bidders x JOIN bid_packages b ON b.id = x.package_id JOIN projects p ON p.id = b.project_id JOIN organizations o ON o.id = p.org_id
         WHERE x.token_hash = $1`,
@@ -152,7 +178,22 @@ export const biddingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
 
   app.get<{ Params: { token: string } }>("/bids/:token", async (req) => {
     const x = await findBidder(req.params.token);
-    return { company: x.company, status: x.status, amount: x.amount, notes: x.notes, title: x.title, scope: x.scope, dueAt: x.due_at, open: x.package_status === "open" && !x.past_due, project: x.project_name, organization: x.org_name };
+    const files = await db.query("SELECT f.id, f.name, f.size FROM bid_package_files bf JOIN files f ON f.id = bf.file_id WHERE bf.package_id = $1 ORDER BY f.name", [x.package_id]);
+    return { files, company: x.company, status: x.status, amount: x.amount, notes: x.notes, title: x.title, scope: x.scope, dueAt: x.due_at, open: x.package_status === "open" && !x.past_due, project: x.project_name, organization: x.org_name };
+  });
+
+  /** Planroom download for a bidder: only files shared with their package. */
+  app.get<{ Params: { token: string; fileId: string } }>("/bids/:token/files/:fileId", async (req, reply) => {
+    const x = await findBidder(req.params.token);
+    const [f] = await db.query<{ storage_key: string; name: string; size: string }>(
+      "SELECT f.storage_key, f.name, f.size FROM bid_package_files bf JOIN files f ON f.id = bf.file_id WHERE bf.package_id = $1 AND f.id::text = $2",
+      [x.package_id, req.params.fileId],
+    );
+    if (!f) throw new HttpError(404, "File not found");
+    reply.header("Content-Type", "application/octet-stream");
+    reply.header("Content-Length", f.size);
+    reply.header("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}`);
+    return reply.send(await config.storage.get(f.storage_key));
   });
 
   app.post<{ Params: { token: string } }>("/bids/:token", async (req) => {

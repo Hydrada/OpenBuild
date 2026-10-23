@@ -13,7 +13,7 @@ Sources:
 | Core | Company/project directory, permissions | **Done** | Org roles owner/admin/member; project roles manager/contributor/viewer/subcontractor |
 | Core | Portfolio dashboard, project home | **Done** | Status counts, open/overdue tasks, my tasks, activity |
 | Core | Tasks | **Done** | Assign, due date, status, CSV import/export |
-| Core | Schedule & milestones | **Done (basic)** | Activities, milestones, finish-to-start dependencies with loop prevention, late/conflict flags, critical path with total float, bar chart, dashboard milestones; single predecessor per activity, no P6/MS Project import |
+| Core | Schedule & milestones | **Done (basic)** | Activities, milestones, multiple finish-to-start predecessors with lag, loop prevention, late/conflict flags, critical path with total float, bar chart, dashboard milestones, Microsoft Project XML import (also from P6/ProjectLibre); no start-to-start/finish-to-finish links or resource levelling |
 | Docs | Drawings | **Done** | Sheets, revisions (current set = latest), sets, issue dates, inline PDF viewer, markup sets |
 | Docs | Documents | **Done** | Folders, versions, sequential approval |
 | Docs | Specifications | **Done** | MasterFormat sections with optional PDF |
@@ -35,7 +35,8 @@ Sources:
 | Financials | Invoices / pay applications | **Done** | AIA G702/G703-style math, retainage, previous certificates, over-billing guard, G703 CSV |
 | Financials | Forecasting | **Basic** | Forecast-to-complete per cost code drives EAC |
 | Preconstruction | Bidding | **Done** | Bid packages, private bidder links (no account), revisions until due, leveling vs low bid, award → draft subcontract |
-| Preconstruction | Planroom, bidder directory | Not built | |
+| Preconstruction | Planroom | **Done** | Drawings/specs shared per bid package, downloadable only through that package's bidder links |
+| Preconstruction | Bidder directory / prequalification | Not built | |
 | Collab | Comments, mentions, notifications | **Done** | In-app + optional email |
 | Collab | Subcontractor portal | **Done** | Restricted role + "My work" |
 | Admin | Custom fields | **Done** | Project, RFI, submittal, punch, observation, task |
