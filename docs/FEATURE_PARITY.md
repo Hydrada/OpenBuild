@@ -31,6 +31,7 @@ Sources:
 | Field | Inspections | **Done** | Templates, pass/fail/N-A, failed item → punch item, completion rule |
 | Field | Punch list | **Done** | Assign, ready-for-review → verify with photo, CSV import |
 | Field | Observations, incidents | **Done** | Severity, assignee, resolution; OSHA recordable/lost time, investigation, corrective action required to close |
+| Field | Forms | **Done** | Company form builder (text, long text, number, date, checkbox, choice, typed signature; required fields); project forms keep their own copy of the questions, save as draft, submit to lock, PDF export |
 | Field | Photos | **Done** | Library, camera capture on mobile, attach to records; albums, captions, locations, tags and capture date from EXIF, with album/tag/date filters |
 | Field | Offline capture | **Done** | Creates (replay-safe `clientId`), queued edits to daily logs, inspection results and punch status, and photos held in IndexedDB until reconnect |
 | Field | T&M tickets | **Done** | Labor/material/equipment lines (qty × rate, half-even), field signature, submit → approve/reject, one-click change event per cost code, signed-ticket attachments |

@@ -183,6 +183,19 @@ export const pdfRoutes = (_config: AppConfig): FastifyPluginAsync => async (app)
     return send(reply, doc, `Pay-application-${inv.number}.pdf`);
   });
 
+  app.get<Id>("/forms/:id/pdf", async (req, reply) => {
+    requireUser(req);
+    const f = await asCaller(req, `/api/forms/${req.params.id}`);
+    const doc = await PdfDoc.create(`Form #${f.number}: ${f.title}`, await projectName(req, f.project_id));
+    doc.fields([["Status", f.status === "submitted" ? `Submitted by ${f.submitted_by_name ?? "-"} ${dt(f.submitted_at)}` : "Draft"], ["Started by", `${f.created_by_name ?? "-"} ${dt(f.created_at)}`]]);
+    doc.fields(f.fields.map((x: J) => {
+      const v = f.answers[x.key];
+      const shown = v === undefined || v === null ? "-" : x.type === "checkbox" ? (v ? "Yes" : "No") : x.type === "signature" ? `Signed: ${v.name} (${dt(v.at)})` : String(v);
+      return [x.label, shown] as [string, unknown];
+    }));
+    return send(reply, doc, `Form-${f.number}.pdf`);
+  });
+
   app.get<{ Params: { projectId: string } }>("/projects/:projectId/punch-list.pdf", async (req, reply) => {
     requireUser(req);
     const items = await asCaller(req, `/api/projects/${req.params.projectId}/punch-items`) as unknown as J[];

@@ -69,7 +69,7 @@ test("key screens have no serious accessibility violations", async ({ browser })
   await api(owner).post(`/projects/${w.projectId}/rfis`, { subject: "a11y", question: "q" });
   const plan = await api(owner).post(`/projects/${w.projectId}/action-plans`, { title: "Closeout", kind: "closeout", useCloseoutTemplate: true });
   const tm = await api(owner).post(`/projects/${w.projectId}/tm-tickets`, { workDate: "2026-10-05", description: "Extra work", lines: [{ category: "labor", description: "Carpenter", quantity: "2", rate: "80" }] });
-  const extra = ["correspondence", "direct-costs", "tm-tickets", "equipment", "action-plans", "warranties", "coordination-issues", "lookahead", "photos"].map((t) => `/projects/${w.projectId}/${t}`).concat("/reports");
+  const extra = ["correspondence", "direct-costs", "tm-tickets", "equipment", "action-plans", "warranties", "coordination-issues", "lookahead", "photos", "forms"].map((t) => `/projects/${w.projectId}/${t}`).concat("/reports");
   await owner.request.post(`/api/projects/${w.projectId}/drawings`, { headers: { "x-openbuild-csrf": "1" }, multipart: { number: "A-1", title: "Plan", revision: "0", file: pdf("A-1") } });
   const drawingId = (await api(owner).get(`/projects/${w.projectId}/drawings`))[0].id;
   await api(owner).post(`/projects/${w.projectId}/cost-codes`, { code: "01", description: "GC" });

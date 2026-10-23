@@ -20,6 +20,7 @@ import { ModelPage } from "./pages/tools/models";
 import { RfiPage, SubmittalPage } from "./pages/tools/rfis";
 import { ActionPlanPage, CoordinationIssuePage, WarrantyPage } from "./pages/tools/closeout";
 import { ReportsPage, SavedReportPage } from "./pages/Reports";
+import { FormPage } from "./pages/tools/forms";
 import { CorrespondencePage, EquipmentPage, TmTicketPage } from "./pages/tools/project-tools";
 import { match, navigate, usePath } from "./router";
 
@@ -47,6 +48,7 @@ const DETAIL: [string, (id: string) => JSX.Element][] = [
   ["tm-tickets", (id) => <TmTicketPage id={id} />],
   ["equipment", (id) => <EquipmentPage id={id} />],
   ["reports", (id) => <SavedReportPage id={id} />],
+  ["forms", (id) => <FormPage id={id} />],
   ["action-plans", (id) => <ActionPlanPage id={id} />],
   ["warranties", (id) => <WarrantyPage id={id} />],
   ["coordination-issues", (id) => <CoordinationIssuePage id={id} />],

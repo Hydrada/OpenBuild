@@ -1281,4 +1281,34 @@ CREATE TABLE permission_templates (
 ALTER TABLE project_memberships ADD COLUMN template_id uuid REFERENCES permission_templates(id) ON DELETE SET NULL;
 `,
   },
+  {
+    id: "0029_forms",
+    sql: /* sql */ `
+-- Forms: company form templates with typed fields, filled in per project.
+CREATE TABLE form_templates (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  fields      jsonb NOT NULL,
+  archived    boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (org_id, name)
+);
+CREATE TABLE forms (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  template_id  uuid NOT NULL REFERENCES form_templates(id) ON DELETE RESTRICT,
+  number       int NOT NULL,
+  title        text NOT NULL,
+  fields       jsonb NOT NULL,
+  answers      jsonb NOT NULL DEFAULT '{}',
+  status       text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','submitted')),
+  submitted_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  submitted_at timestamptz,
+  created_by   uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, number)
+);
+`,
+  },
 ];

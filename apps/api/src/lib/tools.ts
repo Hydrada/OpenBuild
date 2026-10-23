@@ -25,6 +25,7 @@ export const TOOLS = {
   budget: "Budget, cost codes and direct costs",
   commitments: "Contracts, change events, change orders and invoices",
   bidding: "Bidding",
+  forms: "Forms",
 } as const;
 export type Tool = keyof typeof TOOLS;
 export type ToolLevel = "none" | "read" | "standard" | "admin";
@@ -54,6 +55,7 @@ const SEGMENTS: Record<string, Tool> = {
   contracts: "commitments", "change-events": "commitments", "change-orders": "commitments", invoices: "commitments",
   "lien-waivers": "commitments", "compliance-documents": "commitments", "my-contracts": "commitments",
   "bid-packages": "bidding",
+  forms: "forms",
 };
 
 export function toolForRoute(url: string | undefined): Tool | null {
