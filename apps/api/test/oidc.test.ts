@@ -77,7 +77,7 @@ describe("OpenID Connect single sign-on", () => {
     const { app, db } = await ssoApp();
     try {
       await registerOwner(app, "pat@acme.test");
-      expect((await new Client(app).get("/api/auth/config")).body.sso).toEqual({ name: "Okta" });
+      expect((await new Client(app).get("/api/auth/config")).body.sso).toEqual({ name: "Okta", path: "/api/auth/oidc/start" });
 
       const ok = await signIn(app, "PAT@acme.test", { returnTo: "/projects" });
       expect(ok.statusCode).toBe(302);

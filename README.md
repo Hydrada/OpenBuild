@@ -12,7 +12,7 @@ not at feature parity (see the [sourced feature matrix](docs/FEATURE_PARITY.md))
 - **Field:** daily logs with manpower, template inspections, punch list with photo-verified close-out, safety observations, incident reports, photo library, timesheets, offline capture.
 - **Financials:** cost codes, budget with transfers and estimate-at-completion, contracts, change events and orders, AIA-style pay applications with retainage, bidding with a bidder portal.
 - **Collaboration:** comments and @mentions, notifications (in-app and email), approvals inbox, subcontractor portal.
-- **Administration:** audit log, custom fields, CSV import/export, API keys, backup/restore, single sign-on (OIDC), two-factor login, password resets and session control.
+- **Administration:** audit log, custom fields, CSV import/export, API keys, backup/restore, single sign-on (OIDC, SAML), two-factor login, password resets and session control.
 
 ## Run it
 Requires Node.js 22+.
@@ -27,7 +27,7 @@ Shared server: `docker compose up -d --build` (PostgreSQL 16). See [DEPLOYMENT.m
 
 ## Tests
 ```sh
-npm test               # 86 API tests incl. golden financial math and an authorization sweep over every route
+npm test               # 89 API tests incl. golden financial math and an authorization sweep over every route
 npm run test:e2e       # 26 Playwright browser tests incl. offline sync and an axe accessibility scan
 node scripts/smoke.mjs # install → hard kill → restart → backup → restore drill
 node scripts/load-test.mjs http://127.0.0.1:3000

@@ -3,7 +3,7 @@ import { api } from "../api";
 import { ErrorText, Field } from "../components/ui";
 import { useAction } from "../hooks";
 
-export function AuthPage({ onAuthed, allowSignup, sso }: { onAuthed: () => void; allowSignup: boolean; sso?: { name: string } | null }) {
+export function AuthPage({ onAuthed, allowSignup, sso }: { onAuthed: () => void; allowSignup: boolean; sso?: { name: string; path: string } | null }) {
   const ssoError = new URLSearchParams(location.search).get("sso_error");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [form, setForm] = useState({ email: "", password: "", name: "", orgName: "", code: "" });
@@ -46,7 +46,7 @@ export function AuthPage({ onAuthed, allowSignup, sso }: { onAuthed: () => void;
         )}
         <ErrorText error={error ?? ssoError} />
         <button className="primary" disabled={busy}>{mode === "login" ? "Sign in" : "Create account"}</button>
-        {sso && mode === "login" && <a className="button" href="/api/auth/oidc/start">Sign in with {sso.name}</a>}
+        {sso && mode === "login" && <a className="button" href={sso.path}>Sign in with {sso.name}</a>}
         {allowSignup && (
           <button type="button" className="link" onClick={() => setMode(mode === "login" ? "register" : "login")}>
             {mode === "login" ? "New here? Create an organization" : "Already have an account? Sign in"}

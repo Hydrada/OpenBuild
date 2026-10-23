@@ -13,7 +13,7 @@
 - Working calendar per project (weekdays and holidays) used by the critical path.
 - Resources with daily capacity and resource levelling.
 - Models: IFC model register with version element deltas.
-- Single sign-on: OpenID Connect.
+- Single sign-on: OpenID Connect and SAML 2.0.
 - Offline: photos queue on the device.
 - Storage: S3-compatible driver (AWS S3, MinIO, R2, Backblaze).
 - Offline: queued edits for daily logs, inspection results and punch status.

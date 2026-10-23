@@ -11,6 +11,8 @@ import { sha256 } from "./lib/security.js";
 import type { Mailer, Notifier } from "./lib/notify.js";
 import type { OidcConfig } from "./routes/oidc.js";
 import { oidcRoutes } from "./routes/oidc.js";
+import type { SamlConfig } from "./routes/saml.js";
+import { samlRoutes } from "./routes/saml.js";
 import type { Storage } from "./lib/storage.js";
 import { accountRoutes } from "./routes/account.js";
 import { authRoutes } from "./routes/auth.js";
@@ -42,6 +44,8 @@ export interface AppConfig {
   baseUrl?: string;
   /** Optional OpenID Connect single sign-on. */
   oidc?: OidcConfig;
+  /** Optional SAML 2.0 single sign-on. */
+  saml?: SamlConfig;
   /** Absolute path to the built web client, served at / when present. */
   webDist?: string;
   logger?: boolean;
@@ -94,7 +98,7 @@ export async function buildApp(config: AppConfig) {
     if (!req.url.startsWith("/api/")) return;
     const bearer = /^Bearer (ob_[\w-]+)$/.exec(req.headers.authorization ?? "")?.[1];
     // Cookie-authenticated writes must prove same-origin script (CSRF). API keys and tool links carry no cookie.
-    const tokenAuthenticated = !!bearer || req.url.startsWith("/api/tool/") || req.url.startsWith("/api/bids/");
+    const tokenAuthenticated = !!bearer || req.url.startsWith("/api/tool/") || req.url.startsWith("/api/bids/") || req.url.startsWith("/api/auth/saml/acs");
     if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !req.headers[CSRF_HEADER] && !tokenAuthenticated) {
       return reply.code(403).send({ error: "Missing CSRF header" });
     }
@@ -166,6 +170,7 @@ export async function buildApp(config: AppConfig) {
   await app.register(biddingRoutes(config), { prefix: "/api" });
   await app.register(bimRoutes(config), { prefix: "/api" });
   await app.register(oidcRoutes(config), { prefix: "/api" });
+  await app.register(samlRoutes(config), { prefix: "/api" });
 
   if (config.webDist && existsSync(config.webDist)) {
     await app.register(fastifyStatic, { root: config.webDist, wildcard: false });

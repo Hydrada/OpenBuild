@@ -44,7 +44,7 @@ Sources:
 | Admin | API keys, REST API | **Done** | See API.md |
 | Admin | Import/export, backups | **Done** | CSV, backup/restore CLI |
 | Admin | MFA | **Done** | TOTP authenticator apps (RFC 6238) |
-| Admin | SSO | **Done (OIDC)** | OpenID Connect with PKCE, nonce/state, RS256 signature + issuer/audience checks; invited users only; no SAML |
+| Admin | SSO | **Done (OIDC + SAML 2.0)** | OIDC with PKCE, nonce/state, RS256/JWKS; SAML with signed assertions, audience/recipient/time checks and replay protection; invited users only |
 
 ## Existing open-source options reviewed
 Construction-specific open-source suites are scarce; mature options are general-purpose (OpenProject, Redmine, ERPNext, Odoo Community).

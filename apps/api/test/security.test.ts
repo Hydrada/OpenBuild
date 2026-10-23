@@ -14,6 +14,7 @@ const PUBLIC = [
   "GET /api/tool/:token/file", "POST /api/tool/:token/markup",
   "GET /api/bids/:token", "POST /api/bids/:token", "GET /api/bids/:token/files/:fileId",
   "GET /api/auth/oidc/start", "GET /api/auth/oidc/callback",
+  "GET /api/auth/saml/metadata", "GET /api/auth/saml/start", "POST /api/auth/saml/acs",
 ];
 
 let app: App;

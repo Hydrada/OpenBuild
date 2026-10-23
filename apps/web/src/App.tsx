@@ -46,7 +46,7 @@ export function App() {
   const path = usePath();
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [allowSignup, setAllowSignup] = useState(false);
-  const [sso, setSso] = useState<{ name: string } | null>(null);
+  const [sso, setSso] = useState<{ name: string; path: string } | null>(null);
   const [orgId, setOrgId] = useState<string | null>(localStorage.getItem(ORG_KEY));
   const [unread, setUnread] = useState(0);
   const { items: outbox, online, photos } = useOutbox();
