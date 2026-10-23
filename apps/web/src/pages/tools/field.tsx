@@ -3,7 +3,7 @@ import { api, fmtBytes, fmtDate, fmtDateTime, label, today } from "../../api";
 import { Attachments, Comments, CustomFields, canManage, canWrite, useMemberOptions } from "../../components/records";
 import { ActionButton, Badge, Creator, DataTable, Empty, ErrorText, Form, KeyValues, Link, Loading, PageHead } from "../../components/ui";
 import { useAction, useApi } from "../../hooks";
-import { createOrQueue } from "../../offline";
+import { createOrQueue, updateOrQueue } from "../../offline";
 import type { ProjectInfo } from "../Project";
 
 function Queued({ show }: { show: boolean }) {
@@ -64,6 +64,7 @@ export function DailyLogsTool({ project }: { project: ProjectInfo }) {
 export function DailyLogPage({ id }: { id: string }) {
   const r = useApi(`/daily-logs/${id}`);
   const [rows, setRows] = useState<any[] | null>(null);
+  const [logQueued, setLogQueued] = useState(false);
   const { busy, error, run } = useAction();
   const log = r.data;
   if (r.error) return <ErrorText error={r.error} />;
@@ -77,6 +78,7 @@ export function DailyLogPage({ id }: { id: string }) {
       <PageHead back={{ to: `/projects/${log.project_id}/daily-log`, label: "Daily log" }} title={<>Daily log — {fmtDate(log.log_date)} <Badge value={log.status} /></>}
         sub={log.status === "signed" ? `Signed by ${log.signed_by_name} ${fmtDateTime(log.signed_at)}` : `Created by ${log.created_by_name ?? "—"}`}
         actions={canManage(log.myRole) && log.status !== "signed" && <ActionButton className="primary" confirm="Signing locks this log. Continue?" onClick={async () => { await api("POST", `/daily-logs/${log.id}/sign`); r.reload(); }}>Sign log</ActionButton>} />
+      <Queued show={logQueued} />
       {editable ? (
         <Form ariaLabel="Daily log details" submitLabel="Save log" initial={{ weather: log.weather ?? "", workPerformed: log.work_performed ?? "", delays: log.delays ?? "", visitors: log.visitors ?? "", notes: log.notes ?? "" }}
           fields={[
@@ -86,7 +88,10 @@ export function DailyLogPage({ id }: { id: string }) {
             { name: "visitors", label: "Visitors / inspections", type: "textarea" },
             { name: "notes", label: "Notes", type: "textarea" },
           ]}
-          onSubmit={async (v) => { await api("PATCH", `/daily-logs/${log.id}`, { weather: v.weather || null, workPerformed: v.workPerformed || null, delays: v.delays || null, visitors: v.visitors || null, notes: v.notes || null }); r.reload(); }} />
+          onSubmit={async (v) => {
+            const q = await updateOrQueue("PATCH", `/daily-logs/${log.id}`, { weather: v.weather || null, workPerformed: v.workPerformed || null, delays: v.delays || null, visitors: v.visitors || null, notes: v.notes || null }, `Daily log ${log.log_date}: edits`);
+            setLogQueued(q.queued); r.reload();
+          }} />
       ) : (
         <section className="card">
           <KeyValues items={[["Weather", log.weather], ["Temperature", `${log.temp_low ?? "?"}–${log.temp_high ?? "?"} °F`], ["Work performed", log.work_performed], ["Delays", log.delays], ["Visitors", log.visitors], ["Notes", log.notes]]} />
@@ -186,16 +191,19 @@ export function InspectionPage({ id }: { id: string }) {
   const { options } = useMemberOptions(ins?.project_id);
   const { error, run } = useAction();
   const [punchFor, setPunchFor] = useState<string | null>(null);
+  const [queued, setQueued] = useState(false);
   if (r.error) return <ErrorText error={r.error} />;
   if (!ins) return <Loading />;
   const editable = canWrite(ins.myRole) && ins.status !== "completed";
-  const setItem = (itemId: string, body: object) => run(() => api("PATCH", `/inspections/${ins.id}/items/${itemId}`, body)).then(r.reload);
+  const setItem = (itemId: string, body: Record<string, unknown>) =>
+    run(async () => { const q = await updateOrQueue("PATCH", `/inspections/${ins.id}/items/${itemId}`, body, `${ins.title}: item result`); if (q.queued) setQueued(true); }).then(r.reload);
   return (
     <>
       <PageHead back={{ to: `/projects/${ins.project_id}/inspections`, label: "Inspections" }} title={<>{ins.title} <Badge value={ins.status} /></>}
         sub={`${ins.location ?? "No location"} · inspector ${ins.inspector_name ?? "—"}${ins.completed_at ? ` · completed ${fmtDateTime(ins.completed_at)}` : ""}`}
         actions={editable && <ActionButton className="primary" onClick={async () => { await api("POST", `/inspections/${ins.id}/complete`); r.reload(); }}>Complete inspection</ActionButton>} />
       <ErrorText error={error} />
+      <Queued show={queued} />
       <section className="card" aria-label="Checklist">
         <ol className="checklist">
           {ins.items.map((it: any) => (
@@ -293,13 +301,18 @@ export function PunchTool({ project }: { project: ProjectInfo }) {
 export function PunchPage({ id }: { id: string }) {
   const r = useApi(`/punch-items/${id}`);
   const p = r.data;
+  const [queued, setQueued] = useState(false);
   const { options } = useMemberOptions(p && canWrite(p.myRole) ? p.project_id : null);
   if (r.error) return <ErrorText error={r.error} />;
   if (!p) return <Loading />;
   const manager = canManage(p.myRole);
   const verifier = manager || (p.created_by === p.myId && canWrite(p.myRole));
   const isAssignee = p.assignee_id === p.myId;
-  const status = (s: string, requirePhoto = false) => async () => { await api("POST", `/punch-items/${p.id}/status`, { status: s, requirePhoto }); r.reload(); };
+  const status = (s: string, requirePhoto = false) => async () => {
+    const q = await updateOrQueue("POST", `/punch-items/${p.id}/status`, { status: s, requirePhoto }, `Punch #${p.number}: ${s.replace(/_/g, " ")}`);
+    if (q.queued) setQueued(true);
+    r.reload();
+  };
   return (
     <>
       <PageHead back={{ to: `/projects/${p.project_id}/punch`, label: "Punch list" }} title={<>Punch #{p.number}: {p.title} <Badge value={p.status} /></>}
@@ -308,6 +321,7 @@ export function PunchPage({ id }: { id: string }) {
           {p.status !== "closed" && verifier && <ActionButton className="primary" onClick={status("closed", true)}>Verify & close</ActionButton>}
           {p.status !== "open" && verifier && <ActionButton onClick={status("open")}>{p.status === "closed" ? "Reopen" : "Send back"}</ActionButton>}
         </>} />
+      <Queued show={queued} />
       <section className="card">
         <KeyValues items={[
           ["Location", p.location], ["Trade", p.trade], ["Assignee", p.assignee_name], ["Due", fmtDate(p.due_date)],

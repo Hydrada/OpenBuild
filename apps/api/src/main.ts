@@ -4,7 +4,7 @@ import { createDb, defaultDataPath } from "./db/db.js";
 import { migrate } from "./db/migrate.js";
 import { createSmtpMailer } from "./lib/mailer.js";
 import { createNotifier } from "./lib/notify.js";
-import { LocalStorage } from "./lib/storage.js";
+import { storageFromEnv } from "./lib/storage.js";
 
 const env = process.env;
 const db = await createDb(env);
@@ -18,7 +18,7 @@ const app = await buildApp({
   db,
   allowSignup: env.OPENBUILD_ALLOW_SIGNUP !== "false",
   secureCookies: env.OPENBUILD_SECURE_COOKIES === "true",
-  storage: new LocalStorage(env.OPENBUILD_STORAGE_DIR || defaultDataPath("files")),
+  storage: storageFromEnv(env, env.OPENBUILD_STORAGE_DIR || defaultDataPath("files")),
   notify: createNotifier({ baseUrl, mailer }),
   mailer,
   baseUrl,

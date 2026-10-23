@@ -6,7 +6,7 @@ import { api, ApiError } from "./api";
  * Each create carries a client-generated `clientId`; the server treats replays of the same id as the
  * original record, so a request that reached the server before the connection dropped is never duplicated.
  */
-interface Pending { clientId: string; path: string; body: Record<string, unknown>; label: string; queuedAt: string; lastError?: string }
+interface Pending { clientId: string; method?: "POST" | "PATCH"; path: string; body: Record<string, unknown>; label: string; queuedAt: string; lastError?: string }
 
 const KEY = "openbuild.outbox";
 const listeners = new Set<() => void>();
@@ -36,6 +36,23 @@ export async function createOrQueue<T>(path: string, body: Record<string, unknow
   return { queued: true };
 }
 
+/**
+ * Edits (PATCH / status POSTs) made offline are queued and replayed in order. They set values rather than
+ * increment them, so replaying an edit that already reached the server is harmless; a 409 on replay means the
+ * server is already in (or past) that state and the edit is dropped.
+ */
+export async function updateOrQueue<T>(method: "PATCH" | "POST", path: string, body: Record<string, unknown>, label: string): Promise<{ queued: boolean; data?: T }> {
+  if (navigator.onLine) {
+    try {
+      return { queued: false, data: await api<T>(method, path, body) };
+    } catch (e) {
+      if (!isNetworkError(e)) throw e;
+    }
+  }
+  write([...read(), { clientId: crypto.randomUUID(), method, path, body, label, queuedAt: new Date().toISOString() }]);
+  return { queued: true };
+}
+
 let syncing = false;
 /** Sends queued records in order. Validation errors stay in the queue with their message for the user to fix or discard. */
 export async function syncOutbox(): Promise<{ sent: number; failed: number }> {
@@ -46,7 +63,11 @@ export async function syncOutbox(): Promise<{ sent: number; failed: number }> {
   try {
     for (const item of read()) {
       try {
-        await api("POST", item.path, item.body);
+        try {
+          await api(item.method ?? "POST", item.path, item.body);
+        } catch (e) {
+          if (!(item.method && e instanceof ApiError && e.status === 409)) throw e;
+        }
         write(read().filter((p) => p.clientId !== item.clientId));
         sent++;
       } catch (e) {

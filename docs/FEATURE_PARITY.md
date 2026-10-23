@@ -27,7 +27,7 @@ Sources:
 | Field | Punch list | **Done** | Assign, ready-for-review → verify with photo, CSV import |
 | Field | Observations, incidents | **Done** | Severity, assignee, resolution; OSHA recordable/lost time, investigation, corrective action required to close |
 | Field | Photos | **Done** | Library, camera capture on mobile, attach to records |
-| Field | Offline capture | **Done (create only)** | Outbox + replay-safe `clientId`; editing offline not supported |
+| Field | Offline capture | **Done** | Creates (replay-safe `clientId`) plus queued edits to daily logs, inspection results and punch status; no offline photo upload |
 | Field | Timesheets | **Done (basic)** | Self-logged hours by cost code (incl. subcontractors), 24 h/day guard, manager approval, no self-approval; no payroll export |
 | Financials | Budget, cost codes | **Done** | CSV import, lock, transfers, revised/committed/pending/exposure/cost-to-date/EAC/over-under, CSV export |
 | Financials | Prime contracts, commitments | **Done** | Prime, subcontracts, POs, schedule of values, retainage |

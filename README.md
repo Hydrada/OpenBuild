@@ -27,8 +27,8 @@ Shared server: `docker compose up -d --build` (PostgreSQL 16). See [DEPLOYMENT.m
 
 ## Tests
 ```sh
-npm test               # 67 API tests incl. golden financial math and an authorization sweep over every route
-npm run test:e2e       # 19 Playwright browser tests incl. offline sync and an axe accessibility scan
+npm test               # 69 API tests incl. golden financial math and an authorization sweep over every route
+npm run test:e2e       # 20 Playwright browser tests incl. offline sync and an axe accessibility scan
 node scripts/smoke.mjs # install → hard kill → restart → backup → restore drill
 node scripts/load-test.mjs http://127.0.0.1:3000
 node e2e/cua/gui-full.mjs http://127.0.0.1:3200 run docs/evidence/gui-full  # real GUI via CUA Driver (then: after-restart)

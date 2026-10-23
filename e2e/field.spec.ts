@@ -140,3 +140,29 @@ test("photo library", async ({ browser }) => {
   await expect(owner.getByText("north-elevation.jpg")).toBeVisible();
   await expect(owner.getByText("south-elevation.jpg")).toBeVisible();
 });
+
+test("offline edits: inspection results and punch status replay on reconnect", async ({ browser }) => {
+  const w = await world(browser);
+  const { owner, ownerCtx } = w;
+  const ins = await api(owner).post(`/projects/${w.projectId}/inspections`, { title: "Offline walk", items: ["Exit signs lit", "Extinguishers tagged"] });
+  const punch = await api(owner).post(`/projects/${w.projectId}/punch-items`, { title: "Replace ceiling tile" });
+  await owner.goto(`/inspections/${ins.id}`);
+  await expect(owner.getByRole("heading", { name: /Offline walk/ })).toBeVisible();
+  await ownerCtx.setOffline(true);
+  await owner.getByRole("group", { name: "Result for Exit signs lit" }).getByRole("button", { name: "Pass" }).click();
+  await owner.getByRole("group", { name: "Result for Extinguishers tagged" }).getByRole("button", { name: "N/A" }).click();
+  await expect(owner.getByText(/You are offline — saved on this device/)).toBeVisible();
+  await expect(owner.getByRole("heading", { name: /Offline walk/ })).toBeVisible(); // screen stays usable offline
+  await ownerCtx.setOffline(false);
+  await expect(owner.getByRole("link", { name: /queued|waiting to sync/ })).toHaveCount(0, { timeout: 15_000 });
+  const after = await api(owner).get(`/inspections/${ins.id}`);
+  expect(after.items.map((i: { result: string }) => i.result)).toEqual(["pass", "na"]);
+
+  await owner.goto(`/punch/${punch.id}`);
+  await expect(owner.getByRole("button", { name: "Mark ready for review" })).toBeVisible();
+  await ownerCtx.setOffline(true);
+  await owner.getByRole("button", { name: "Mark ready for review" }).click();
+  await expect(owner.getByText(/You are offline/)).toBeVisible();
+  await ownerCtx.setOffline(false);
+  await expect.poll(async () => (await api(owner).get(`/punch-items/${punch.id}`)).status, { timeout: 15_000 }).toBe("ready_for_review");
+});

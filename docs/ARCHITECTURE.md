@@ -17,9 +17,9 @@ browser ──HTTPS──> Fastify API (apps/api) ──SQL──> PostgreSQL 16
 | Auth | scrypt password hashes, random session tokens (only SHA-256 stored), httpOnly SameSite=Lax cookie | `lib/security.ts`, `routes/auth.ts` |
 | Authorization | Org roles + project roles, checked server-side on every route | `lib/permissions.ts` |
 | Audit | Append-only `audit_log` written in the same transaction as each change | `lib/audit.ts` |
-| Files | Local-disk blob store behind a `Storage` interface; server-generated keys; metadata in `files` | `lib/storage.ts`, `lib/uploads.ts` |
+| Files | Local disk or S3-compatible object storage behind a `Storage` interface; server-generated keys; metadata in `files` | `lib/storage.ts`, `lib/uploads.ts` |
 | Offline | App-shell service worker + client outbox with `clientId` replay protection | `apps/web/public/sw.js`, `apps/web/src/offline.ts` |
-| Tests | Vitest (67 API tests incl. a route-inventory security sweep; PGlite locally, PostgreSQL 16 in CI), Playwright (19 browser acceptance tests + axe), CUA Driver (real GUI), install/recovery drill, load test | `apps/api/test`, `e2e/`, `scripts/` |
+| Tests | Vitest (69 API tests incl. a route-inventory security sweep; PGlite locally, PostgreSQL 16 in CI), Playwright (20 browser acceptance tests + axe), CUA Driver (real GUI), install/recovery drill, load test | `apps/api/test`, `e2e/`, `scripts/` |
 
 ## Architecture decision records
 

@@ -45,6 +45,7 @@ tar xzf openbuild-v0.2.0.tar.gz && cd openbuild && npm ci --omit=dev && npm star
 | `OPENBUILD_BASE_URL` | — | Public URL, used in emailed links, e.g. `https://build.example.com` |
 | `OPENBUILD_SMTP_URL` | — | e.g. `smtps://user:pass@smtp.example.com:465`; enables email for invitations, resets and notifications |
 | `OPENBUILD_MAIL_FROM` | `OpenBuild <no-reply@localhost>` | Sender address |
+| `OPENBUILD_S3_BUCKET` | — | Store files in S3-compatible storage instead of local disk; also `OPENBUILD_S3_REGION`, `OPENBUILD_S3_ENDPOINT` (MinIO/R2/B2), `OPENBUILD_S3_ACCESS_KEY_ID`, `OPENBUILD_S3_SECRET_ACCESS_KEY`, `OPENBUILD_S3_FORCE_PATH_STYLE`, `OPENBUILD_S3_PREFIX` |
 | `OPENBUILD_DOC_TOOLS` | `[{"id":"opendraft","name":"OpenDraft"}]` | Markup tools; see [INTEGRATIONS.md](INTEGRATIONS.md) |
 
 ## Production checklist
