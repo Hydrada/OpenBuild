@@ -79,7 +79,7 @@ export function DrawingPage({ id }: { id: string }) {
       <PageHead back={{ to: `/projects/${dr.project_id}/drawings`, label: "Drawings" }} title={`${dr.number} — ${dr.title}`} sub={`${dr.discipline} · current revision ${current?.revision ?? "—"}`} />
       {current && (
         <Suspense fallback={<section className="card"><Loading /></section>}>
-          <SheetViewer key={current.id} revisionId={current.id} label={`Sheet ${dr.number} revision ${current.revision}`}
+          <SheetViewer key={current.id} revisionId={current.id} canMeasure={writable} label={`Sheet ${dr.number} revision ${current.revision}`}
             fileUrl={`/api/files/${current.file_id}/download?inline=1`}
             revisions={dr.revisions.map((r: any) => ({ id: r.id, revision: r.revision, fileUrl: `/api/files/${r.file_id}/download?inline=1` }))} />
           <p className="muted small"><a href={`/api/files/${current.file_id}/download`}>Download the PDF</a></p>

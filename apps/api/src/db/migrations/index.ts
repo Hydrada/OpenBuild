@@ -1391,4 +1391,34 @@ CREATE TABLE project_email_files (
 ALTER TABLE projects ADD COLUMN inbound_email_token_hash text;
 `,
   },
+  {
+    id: "0033_takeoff",
+    sql: /* sql */ `
+-- Takeoff: scale calibration per sheet revision and measured quantities.
+CREATE TABLE takeoff_scales (
+  revision_id  uuid PRIMARY KEY REFERENCES drawing_revisions(id) ON DELETE CASCADE,
+  project_id   uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  -- Real-world units per sheet unit along x and y (sheet coordinates are fractions 0..1 of width/height).
+  units_per_x  double precision NOT NULL CHECK (units_per_x > 0),
+  units_per_y  double precision NOT NULL CHECK (units_per_y > 0),
+  unit         text NOT NULL CHECK (unit IN ('ft','m')),
+  set_by       uuid REFERENCES users(id) ON DELETE SET NULL,
+  set_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE takeoff_items (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  revision_id  uuid NOT NULL REFERENCES drawing_revisions(id) ON DELETE CASCADE,
+  name         text NOT NULL,
+  kind         text NOT NULL CHECK (kind IN ('length','area','count')),
+  points       jsonb NOT NULL,
+  quantity     numeric(16,3) NOT NULL,
+  unit         text NOT NULL,
+  cost_code_id uuid REFERENCES cost_codes(id) ON DELETE SET NULL,
+  created_by   uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX takeoff_items_project ON takeoff_items (project_id, revision_id);
+`,
+  },
 ];

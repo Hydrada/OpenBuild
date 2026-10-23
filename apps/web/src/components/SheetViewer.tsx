@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { api } from "../api";
 import { ErrorText } from "./ui";
+import { TakeoffLayer } from "./Takeoff";
 
 type Color = "red" | "blue" | "green" | "orange" | "black";
 type Shape =
@@ -88,8 +89,8 @@ function ShapeSvg({ s, W, H }: { s: Shape; W: number; H: number }) {
   }
 }
 
-export default function SheetViewer({ fileUrl, revisionId, revisions, label }: {
-  fileUrl: string; revisionId: string; label: string;
+export default function SheetViewer({ fileUrl, revisionId, revisions, label, canMeasure = false }: {
+  fileUrl: string; revisionId: string; label: string; canMeasure?: boolean;
   /** Other revisions of the same sheet, newest first, for comparison. */
   revisions: { id: string; revision: string; fileUrl: string }[];
 }) {
@@ -110,6 +111,8 @@ export default function SheetViewer({ fileUrl, revisionId, revisions, label }: {
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [draft, setDraft] = useState<Shape | null>(null);
+  const [takeoffOn, setTakeoffOn] = useState(false);
+  const [barHost, setBarHost] = useState<HTMLDivElement | null>(null);
   const [textAt, setTextAt] = useState<{ x: number; y: number; value: string } | null>(null);
 
   // Load markup layers.
@@ -221,6 +224,7 @@ export default function SheetViewer({ fileUrl, revisionId, revisions, label }: {
           ))}
         </div>
       )}
+      <div ref={setBarHost} />
       <div className="sheet-scroll" ref={box}>
         <div className="sheet-stack" style={size ? { width: size.W, height: size.H } : undefined}>
           <div ref={canvasHost} />
@@ -232,6 +236,7 @@ export default function SheetViewer({ fileUrl, revisionId, revisions, label }: {
               {draft && <ShapeSvg s={draft} W={size.W} H={size.H} />}
             </svg>
           )}
+          {size && !compareWith && <TakeoffLayer revisionId={revisionId} W={size.W} H={size.H} canMeasure={canMeasure} active={takeoffOn} onActive={setTakeoffOn} barHost={barHost} />}
           {textAt && size && (
             <form className="sheet-text" style={{ left: textAt.x * size.W, top: textAt.y * size.H }} onSubmit={(e) => {
               e.preventDefault();

@@ -58,7 +58,7 @@ const SEGMENTS: Record<string, Tool> = {
   "lien-waivers": "commitments", "compliance-documents": "commitments", "my-contracts": "commitments",
   "bid-packages": "bidding",
   forms: "forms",
-  estimates: "estimating",
+  estimates: "estimating", takeoff: "estimating", "takeoff-items": "estimating",
   emails: "emails",
 };
 

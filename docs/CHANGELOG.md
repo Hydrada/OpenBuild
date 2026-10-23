@@ -11,6 +11,7 @@
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
 - Correspondence (transmittals, notices, instructions, letters, memos) with acknowledgements.
+- On-screen takeoff: calibrate a sheet, measure lengths, areas and counts, and use them in estimates.
 - Emails: send from the project with attachments, keep threads, receive replies by webhook.
 - Cash flow: monthly forecast (four spread curves) against actual cost, with a cumulative chart and CSV.
 - Estimating: cost catalog, priced estimates with markups, and one-click transfer to the budget.

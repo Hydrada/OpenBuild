@@ -49,6 +49,7 @@ export function EstimatePage({ id }: { id: string }) {
   const codes = useApi<any[]>(e ? `/projects/${e.project_id}/cost-codes` : null);
   const proj = useApi<any>(e ? `/projects/${e.project_id}` : null);
   const catalog = useApi<any[]>(proj.data ? `/orgs/${proj.data.org_id}/cost-catalog` : null);
+  const takeoff = useApi<any[]>(e ? `/projects/${e.project_id}/takeoff` : null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const { busy, error, run } = useAction();
   if (r.error) return <ErrorText error={r.error} />;
@@ -101,6 +102,14 @@ export function EstimatePage({ id }: { id: string }) {
                 if (it) setRows([...cur, { costCodeId: "", description: it.name, category: it.category, quantity: "1", unit: it.unit, unitCost: it.unit_cost }]);
               }}>
                 <option value="">Add from cost catalog…</option>{catalog.data!.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.unit} @ {c.unit_cost})</option>)}
+              </select>
+            )}
+            {(takeoff.data ?? []).length > 0 && (
+              <select aria-label="Add from takeoff" value="" onChange={(ev) => {
+                const m = takeoff.data!.find((t) => t.id === ev.target.value);
+                if (m) setRows([...cur, { costCodeId: m.cost_code_id ?? "", description: `${m.name} (${m.sheet})`, category: "material", quantity: String(Number(m.quantity)), unit: m.unit, unitCost: "0" }]);
+              }}>
+                <option value="">Add from takeoff…</option>{takeoff.data!.map((t) => <option key={t.id} value={t.id}>{t.sheet}: {t.name} — {Number(t.quantity)} {t.unit}</option>)}
               </select>
             )}
             <button className="primary" type="button" disabled={busy || !rows} onClick={() => run(async () => {

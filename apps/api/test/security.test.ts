@@ -72,6 +72,7 @@ beforeAll(async () => {
   const est = (await owner.post(`${P}/estimates`, { name: "e" })).body;
   const catItem = (await owner.post(`/api/orgs/${orgId}/cost-catalog`, { name: "i", unit: "ea", unitCost: "1" })).body;
   await owner.req("PUT", `${P}/budget/lines/${cc.id}/spread`, { start: "2026-10", end: "2026-12", curve: "linear" });
+  const tk = (await owner.post(`/api/drawing-revisions/${dRow.revisions[0].id}/takeoff`, { name: "c", kind: "count", points: [[0.1, 0.1]] })).body;
   const dlEntry = (await owner.post(`/api/daily-logs/${log.id}/entries`, { kind: "call", description: "c" })).body;
   const waiver = (await owner.post(`/api/invoices/${inv.id}/lien-waivers`, { kind: "conditional_progress" })).body;
   const report = (await owner.post(`/api/orgs/${orgId}/reports`, { name: "r", dataset: "rfis", config: { columns: ["subject"] } })).body;
@@ -86,7 +87,7 @@ beforeAll(async () => {
     "/drawings/": drawing.drawingId, "/drawing-revisions/": dRow.revisions[0].id, "/files/": dRow.revisions[0].file_id,
     "/documents/": doc.id, "/approval-steps/": step.id, "/rfis/": rfi.id, "/submittals/": sub.id, "/daily-logs/": log.id,
     "/inspections/": ins.id, "/punch-items/": punch.id, "/observations/": obs.id, "/incidents/": inc.id, "/contracts/": k.id,
-    "/change-events/": ce.id, "/correspondence/": corr.id, "/direct-costs/": dc.id, "/tm-tickets/": tm.id, "/equipment/": eq.id, "/action-plans/": plan.id, "/action-plan-items/": planItem.id, "/warranties/": warranty.id, "/coordination-issues/": issue.id, "/clash-runs/": clashRun.id, "/lookahead-tasks/": laTask.id, "/workers/": worker.id, "/crews/": crew.id, "/reports/": report.id, "/compliance-documents/": compDoc.id, "/lien-waivers/": waiver.id, "/daily-log-entries/": dlEntry.id, "/permission-templates/": tpl2.id, "/form-templates/": ftpl.id, "/forms/": form.id, "/estimates/": est.id, "/cost-catalog/": catItem.id, "/change-orders/": co.id, "/invoices/": inv.id, "/tasks/": randomUUID(),
+    "/change-events/": ce.id, "/correspondence/": corr.id, "/direct-costs/": dc.id, "/tm-tickets/": tm.id, "/equipment/": eq.id, "/action-plans/": plan.id, "/action-plan-items/": planItem.id, "/warranties/": warranty.id, "/coordination-issues/": issue.id, "/clash-runs/": clashRun.id, "/lookahead-tasks/": laTask.id, "/workers/": worker.id, "/crews/": crew.id, "/reports/": report.id, "/compliance-documents/": compDoc.id, "/lien-waivers/": waiver.id, "/daily-log-entries/": dlEntry.id, "/permission-templates/": tpl2.id, "/form-templates/": ftpl.id, "/forms/": form.id, "/estimates/": est.id, "/takeoff-items/": tk.id, "/cost-catalog/": catItem.id, "/change-orders/": co.id, "/invoices/": inv.id, "/tasks/": randomUUID(),
     "custom-fields/": field.id, "api-keys/": key.id, "/me/sessions/": randomUUID(),
   };
   outsider = (await registerOwner(app, "outsider@example.com")).client;
