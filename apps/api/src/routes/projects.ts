@@ -63,7 +63,7 @@ export const projectRoutes = (config: AppConfig): FastifyPluginAsync => async (a
     return db.query(
       `SELECT u.id, u.name, u.email,
               CASE WHEN om.role IN ('owner','admin') THEN 'admin' ELSE pm.role END AS role, om.company,
-              pm.role AS project_role, om.role AS org_role
+              pm.role AS project_role, om.role AS org_role, pm.template_id
          FROM org_memberships om JOIN users u ON u.id = om.user_id
          LEFT JOIN project_memberships pm ON pm.project_id = $1 AND pm.user_id = om.user_id
         WHERE om.org_id = $2 AND (om.role IN ('owner','admin') OR pm.role IS NOT NULL)

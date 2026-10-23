@@ -1,5 +1,6 @@
 import type { Queryable } from "../db/db.js";
 import { requestScope } from "./context.js";
+import { TOOLS, type Tool, type ToolLevel } from "./tools.js";
 import { HttpError } from "./errors.js";
 
 export type OrgRole = "owner" | "admin" | "member";
@@ -54,22 +55,27 @@ export async function requireProject(
   action: ProjectAction,
 ): Promise<ProjectAccess> {
   if (!isUuid(projectId)) throw new HttpError(404, "Project not found");
-  const rows = await q.query<{ id: string; org_id: string; name: string; org_role: OrgRole | null; project_role: ProjectRole | null }>(
-    `SELECT p.id, p.org_id, p.name, om.role AS org_role, pm.role AS project_role
+  const rows = await q.query<{ id: string; org_id: string; name: string; org_role: OrgRole | null; project_role: ProjectRole | null; levels: Record<string, ToolLevel> | null }>(
+    `SELECT p.id, p.org_id, p.name, om.role AS org_role, pm.role AS project_role, pt.levels
        FROM projects p
        LEFT JOIN org_memberships om ON om.org_id = p.org_id AND om.user_id = $2
        LEFT JOIN project_memberships pm ON pm.project_id = p.id AND pm.user_id = $2
+       LEFT JOIN permission_templates pt ON pt.id = pm.template_id
       WHERE p.id = $1`,
     [projectId, userId],
   );
   const row = rows[0];
-  const role: EffectiveProjectRole | null = !row?.org_role
+  const baseRole: EffectiveProjectRole | null = !row?.org_role
     ? null
     : row.org_role === "owner" || row.org_role === "admin"
       ? "admin"
       : row.project_role;
-  if (!row || !role) throw new HttpError(404, "Project not found");
+  if (!row || !baseRole) throw new HttpError(404, "Project not found");
   assertKeyScope(row.org_id, "Project not found");
+  // Permission template: the member's level for this route's tool adjusts their role for this request only.
+  const tool = requestScope.getStore()?.tool;
+  const role = tool ? roleForTool(baseRole, row.levels?.[tool]) : baseRole;
+  if (role === null) throw new HttpError(403, `You do not have access to ${TOOLS[tool!]}`);
   if (!projectRoleAllows(role, action)) throw new HttpError(403, "You do not have permission to do that");
   return { project: { id: row.id, org_id: row.org_id, name: row.name }, role };
 }
@@ -93,3 +99,29 @@ export function assertVisibleToSub(access: { role: EffectiveProjectRole }, userI
 
 /** Roles that can create/edit records (contributor and up). */
 export const canWriteRecords = (role: EffectiveProjectRole) => role === "admin" || role === "manager" || role === "contributor";
+
+/**
+ * A tool level on top of the project role. none: no access. read: as a viewer. standard: the role as is.
+ * admin: as a manager (for that tool only). Company admins and subcontractors' visibility rules are never widened.
+ */
+export function roleForTool(role: EffectiveProjectRole, level: ToolLevel | undefined): EffectiveProjectRole | null {
+  if (role === "admin" || !level || level === "standard") return role;
+  if (level === "none") return null;
+  if (role === "subcontractor") return role;
+  return level === "read" ? "viewer" : "manager";
+}
+
+/** The caller's level for every tool on a project (company admins and members without a template: all standard). */
+export async function toolLevels(q: Queryable, userId: string, projectId: string): Promise<Record<Tool, ToolLevel>> {
+  const [r] = await q.query<{ levels: Record<string, ToolLevel> | null; org_role: OrgRole | null }>(
+    `SELECT pt.levels, om.role AS org_role FROM projects p
+       LEFT JOIN org_memberships om ON om.org_id = p.org_id AND om.user_id = $2
+       LEFT JOIN project_memberships pm ON pm.project_id = p.id AND pm.user_id = $2
+       LEFT JOIN permission_templates pt ON pt.id = pm.template_id WHERE p.id = $1`,
+    [projectId, userId],
+  );
+  const admin = r?.org_role === "owner" || r?.org_role === "admin";
+  return Object.fromEntries((Object.keys(TOOLS) as Tool[]).map((t) => [t, admin ? "standard" : r?.levels?.[t] ?? "standard"])) as Record<Tool, ToolLevel>;
+}
+
+export type { Tool };

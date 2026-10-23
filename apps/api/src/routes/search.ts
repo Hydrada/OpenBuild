@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { type AppConfig, requireUser } from "../app.js";
-import { isSubcontractor, projectRoleAllows, requireProject } from "../lib/permissions.js";
+import { isSubcontractor, projectRoleAllows, requireProject, toolLevels } from "../lib/permissions.js";
+import type { Tool } from "../lib/tools.js";
 
 /**
  * One searchable source. `text` is the SQL expression matched with ILIKE; `sub` (if set) is the extra condition
@@ -9,6 +10,9 @@ import { isSubcontractor, projectRoleAllows, requireProject } from "../lib/permi
  * unless `subAll` is set (drawings and specs are visible to everyone on the project).
  */
 interface Source { kind: string; label: string; link: string; sql: string; text: string; sub?: string; subAll?: boolean }
+
+/** Which permission-template tool each source belongs to. */
+const SOURCE_TOOL: Record<string, Tool> = {"rfi": "rfis", "submittal": "submittals", "drawing": "drawings", "spec": "specs", "document": "documents", "punch": "punch", "observation": "observations", "incident": "incidents", "inspection": "inspections", "meeting": "meetings", "change_event": "commitments", "change_order": "commitments", "contract": "commitments", "correspondence": "correspondence", "coordination_issue": "models", "action_plan": "action_plans", "warranty": "action_plans", "tm_ticket": "tm_tickets"};
 
 const SOURCES: Source[] = [
   { kind: "rfi", label: "RFI", link: "/rfis/", sql: "SELECT id, 'RFI #' || number AS ref, subject AS title, status, created_at FROM rfis t", text: "number::text || ' ' || subject || ' ' || coalesce(question, '')", sub: "$3 IN (t.assignee_id, t.created_by)" },
@@ -46,7 +50,9 @@ export const searchRoutes = (config: AppConfig): FastifyPluginAsync => async (ap
     // Private correspondence follows the same rule as the correspondence tool.
     const manager = projectRoleAllows(access.role, "record.manage");
     const parts: string[] = [];
+    const levels = await toolLevels(db, user.id, req.params.projectId);
     for (const s of SOURCES) {
+      if (SOURCE_TOOL[s.kind] && levels[SOURCE_TOOL[s.kind]!] === "none") continue;
       let visibility = "TRUE";
       if (sub) {
         if (s.subAll) visibility = "TRUE";

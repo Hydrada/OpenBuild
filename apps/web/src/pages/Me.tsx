@@ -1,3 +1,4 @@
+import { PermissionTemplatesSection } from "./PermissionTemplates";
 import { useState } from "react";
 import { api, fmtDate, fmtDateTime, label } from "../api";
 import { ActionButton, Badge, DataTable, Empty, ErrorText, Form, Link, Loading, PageHead } from "../components/ui";
@@ -218,6 +219,7 @@ export function OrgSettingsPage({ orgId }: { orgId: string }) {
           fields={[{ name: "name", label: "Template name", required: true }, { name: "items", label: "Checklist items (one per line)", type: "textarea", required: true }]}
           onSubmit={async (v) => { await api("POST", `/orgs/${orgId}/inspection-templates`, { name: v.name, items: String(v.items).split("\n").map((s) => s.trim()).filter(Boolean) }); templates.reload(); }} />
       </section>
+      <PermissionTemplatesSection orgId={orgId} />
     </>
   );
 }

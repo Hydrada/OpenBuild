@@ -4,7 +4,7 @@ import { migrations } from "./migrations/index.js";
 /** Tables in foreign-key order (parents first). Every application table must be listed. */
 export const TABLE_ORDER = [
   "users", "organizations", "org_memberships", "sessions", "oidc_states", "password_resets", "api_keys",
-  "workers", "projects", "project_holidays", "project_memberships", "invitations", "tasks",
+  "workers", "projects", "project_holidays", "permission_templates", "project_memberships", "invitations", "tasks",
   "files", "attachments", "photo_albums", "photo_meta", "drawings", "drawing_revisions", "markup_sets", "drawing_annotations", "tool_tokens",
   "folders", "documents", "document_versions", "approval_steps", "spec_sections",
   "rfis", "rfi_responses", "submittals", "notifications", "comments",

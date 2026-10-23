@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { ZodError } from "zod";
 import type { Db } from "./db/db.js";
 import { requestScope } from "./lib/context.js";
+import { toolForRoute } from "./lib/tools.js";
 import { HttpError } from "./lib/errors.js";
 import { sha256 } from "./lib/security.js";
 import type { Mailer, Notifier } from "./lib/notify.js";
@@ -27,6 +28,7 @@ import { annotationRoutes } from "./routes/annotations.js";
 import { subcontractRoutes } from "./routes/subcontract.js";
 import { drawingSetRoutes } from "./routes/drawing-sets.js";
 import { photoRoutes } from "./routes/photos.js";
+import { permissionTemplateRoutes } from "./routes/permission-templates.js";
 import { bimRoutes } from "./routes/bim.js";
 import { collabRoutes } from "./routes/collab.js";
 import { documentRoutes } from "./routes/documents.js";
@@ -136,7 +138,7 @@ export async function buildApp(config: AppConfig) {
   });
   // Run the rest of the request inside its permission scope (callback style so the handler inherits it).
   app.addHook("onRequest", (req, _reply, done) => {
-    requestScope.run({ apiKeyOrgId: req.apiKeyOrgId ?? undefined }, done);
+    requestScope.run({ apiKeyOrgId: req.apiKeyOrgId ?? undefined, tool: toolForRoute(req.routeOptions?.url) }, done);
   });
 
   app.addHook("onSend", async (_req, reply, payload) => {
@@ -189,6 +191,7 @@ export async function buildApp(config: AppConfig) {
   await app.register(subcontractRoutes(config), { prefix: "/api" });
   await app.register(drawingSetRoutes(config), { prefix: "/api" });
   await app.register(photoRoutes(config), { prefix: "/api" });
+  await app.register(permissionTemplateRoutes(config), { prefix: "/api" });
   await app.register(oidcRoutes(config), { prefix: "/api" });
   await app.register(samlRoutes(config), { prefix: "/api" });
 

@@ -6,7 +6,8 @@ import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { toCsv } from "../lib/finance.js";
 import { dec, fmt, sum } from "../lib/money.js";
-import { getOrgRole, isUuid, requireOrgRole, requireProject } from "../lib/permissions.js";
+import { getOrgRole, isUuid, requireOrgRole, requireProject, toolLevels } from "../lib/permissions.js";
+import { DATASET_TOOL } from "../lib/tools.js";
 import { DATASETS, PROJECT_COLUMN, type ColumnDef } from "../lib/reports.js";
 
 const datasetKey = z.enum(Object.keys(DATASETS) as [string, ...string[]]);
@@ -109,13 +110,22 @@ export const reportRoutes = (config: AppConfig): FastifyPluginAsync => async (ap
     return readableProjects(db, userId, orgId);
   }
 
+  /** Projects whose permission template hides this dataset's tool from the caller are left out. */
+  async function allowed(userId: string, dataset: string, projectIds: string[]) {
+    const tool = DATASET_TOOL[dataset];
+    if (!tool) return projectIds;
+    const out: string[] = [];
+    for (const p of projectIds) if ((await toolLevels(db, userId, p))[tool] !== "none") out.push(p);
+    return out;
+  }
+
   const runBody = z.object({ dataset: datasetKey, projectId: z.uuid().nullable().optional(), config: reportConfig });
 
   app.post<{ Params: { orgId: string } }>("/orgs/:orgId/reports/run", async (req) => {
     const user = requireUser(req);
     await requireOrgRole(db, user.id, req.params.orgId, ["owner", "admin", "member"]);
     const b = runBody.parse(req.body);
-    return runReport(db, b.dataset, b.config, await scope(user.id, req.params.orgId, b.projectId));
+    return runReport(db, b.dataset, b.config, await allowed(user.id, b.dataset, await scope(user.id, req.params.orgId, b.projectId)));
   });
 
   // ---------- Saved reports ----------
@@ -162,14 +172,14 @@ export const reportRoutes = (config: AppConfig): FastifyPluginAsync => async (ap
   app.get<{ Params: { id: string } }>("/reports/:id", async (req) => {
     const user = requireUser(req);
     const r = await loadReport(req.params.id, user.id);
-    const result = await runReport(db, r.dataset, reportConfig.parse(r.config), await scope(user.id, r.org_id, r.project_id));
+    const result = await runReport(db, r.dataset, reportConfig.parse(r.config), await allowed(user.id, r.dataset, await scope(user.id, r.org_id, r.project_id)));
     return { ...r, result, mine: r.created_by === user.id };
   });
 
   app.get<{ Params: { id: string } }>("/reports/:id/csv", async (req, reply) => {
     const user = requireUser(req);
     const r = await loadReport(req.params.id, user.id);
-    const res = await runReport(db, r.dataset, reportConfig.parse(r.config), await scope(user.id, r.org_id, r.project_id));
+    const res = await runReport(db, r.dataset, reportConfig.parse(r.config), await allowed(user.id, r.dataset, await scope(user.id, r.org_id, r.project_id)));
     reply.header("Content-Type", "text/csv; charset=utf-8");
     reply.header("Content-Disposition", `attachment; filename="${r.name.replace(/[^\w.-]+/g, "_").slice(0, 80) || "report"}.csv"`);
     return toCsv(res.columns.map((c) => c.label), res.rows.map((row) => res.columns.map((c) => {

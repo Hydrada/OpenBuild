@@ -50,6 +50,7 @@ Sources:
 | Core | Reports | **Done** | Custom report builder over 10 datasets (RFIs, submittals, punch, observations, incidents, change orders, direct costs, timesheets, coordination issues, daily-log manpower): pick columns, statuses, date range, text, assignee; group and total; one project or every project you can read; save privately or share; CSV export |
 | Collab | Comments, mentions, notifications | **Done** | In-app + optional email |
 | Collab | Subcontractor portal | **Done** | Restricted role + "My work" |
+| Admin | Permission templates | **Done** | Company templates set each of 22 project tools to none / read only / standard / admin, layered on the member's project role and enforced centrally for every API route; search, reports and navigation hide tools set to none; company admins are never restricted |
 | Admin | Custom fields | **Done** | Project, RFI, submittal, punch, observation, task |
 | Admin | Audit log | **Done** | Database-enforced append-only |
 | Admin | API keys, REST API | **Done** | See API.md |

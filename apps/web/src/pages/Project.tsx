@@ -58,13 +58,23 @@ const TOOLS: Tool[] = [
   { id: "settings", label: "Settings", group: "Project", render: (p, reload) => <Settings project={p} onSaved={reload} /> },
 ];
 
+/** Project tool id -> permission-template tool. */
+const TEMPLATE_TOOL: Record<string, string> = {
+  schedule: "schedule", lookahead: "schedule", meetings: "meetings", correspondence: "correspondence", "action-plans": "action_plans", warranties: "action_plans",
+  drawings: "drawings", documents: "documents", models: "models", "coordination-issues": "models", specs: "specs", rfis: "rfis", submittals: "submittals",
+  "daily-log": "daily_log", inspections: "inspections", punch: "punch", observations: "observations", incidents: "incidents", photos: "photos",
+  timesheets: "timesheets", "tm-tickets": "tm_tickets", equipment: "equipment", bidding: "bidding", budget: "budget", "direct-costs": "budget",
+  contracts: "commitments", "change-events": "commitments", "change-orders": "commitments", invoices: "commitments", "my-contracts": "commitments",
+};
+
 export function ProjectPage({ projectId, tool }: { projectId: string; tool: string }) {
   const project = useApi<ProjectInfo>(`/projects/${projectId}`);
+  const levels = useApi<Record<string, string>>(`/projects/${projectId}/my-tools`);
   if (project.error) return <ErrorText error={project.error} />;
   const p = project.data;
   if (!p) return <Loading />;
   const sub = p.myRole === "subcontractor";
-  const visible = TOOLS.filter((t) => (!sub || t.external) && (!t.subOnly || sub) && (t.id !== "settings" || canManage(p.myRole)));
+  const visible = TOOLS.filter((t) => (!sub || t.external) && (!t.subOnly || sub) && (t.id !== "settings" || canManage(p.myRole)) && levels.data?.[TEMPLATE_TOOL[t.id] ?? ""] !== "none");
   const current = visible.find((t) => t.id === tool) ?? visible[0]!;
   const groups = [...new Set(visible.map((t) => t.group))];
   return (
@@ -139,6 +149,7 @@ function Team({ project }: { project: ProjectInfo }) {
   const { busy, error, run } = useAction();
   const candidates = org.data?.members.filter((m) => m.role === "member" && !members.data?.some((pm) => pm.id === m.id)) ?? [];
   const roles = ["manager", "contributor", "viewer", "subcontractor"];
+  const templates = useApi<any[]>(`/orgs/${project.org_id}/permission-templates`);
 
   async function setRole(userId: string, role: string | null) {
     if (await run(() => api("PUT", `/projects/${project.id}/members/${userId}`, { role }))) members.reload();
@@ -158,6 +169,11 @@ function Team({ project }: { project: ProjectInfo }) {
               {roles.map((r) => <option key={r} value={r}>{label(r)}</option>)}
             </select>
           ) : m.role === "admin" ? `Company ${m.org_role}` : label(m.role) },
+          { label: "Permissions", render: (m) => m.role === "admin" ? "Full" : manage ? (
+            <select aria-label={`Permission template of ${m.name}`} value={m.template_id ?? ""} onChange={(e) => run(() => api("PUT", `/projects/${project.id}/members/${m.id}/template`, { templateId: e.target.value || null })).then(() => members.reload())}>
+              <option value="">Role only</option>{(templates.data ?? []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          ) : (templates.data ?? []).find((t) => t.id === m.template_id)?.name ?? "Role only" },
           { label: "", render: (m) => manage && m.role !== "admin" ? <button className="link danger" onClick={() => setRole(m.id, null)}>Remove</button> : null },
         ]} />
         {manage && candidates.length > 0 && (

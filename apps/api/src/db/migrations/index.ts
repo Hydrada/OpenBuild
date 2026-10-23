@@ -1266,4 +1266,19 @@ CREATE TABLE daily_log_entries (
 CREATE INDEX daily_log_entries_log ON daily_log_entries (log_id, kind);
 `,
   },
+  {
+    id: "0028_permission_templates",
+    sql: /* sql */ `
+-- Permission templates: per-tool access levels layered on a member's project role.
+CREATE TABLE permission_templates (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  levels      jsonb NOT NULL DEFAULT '{}',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (org_id, name)
+);
+ALTER TABLE project_memberships ADD COLUMN template_id uuid REFERENCES permission_templates(id) ON DELETE SET NULL;
+`,
+  },
 ];

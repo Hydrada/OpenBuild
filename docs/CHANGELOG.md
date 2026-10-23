@@ -11,6 +11,7 @@
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
 - Correspondence (transmittals, notices, instructions, letters, memos) with acknowledgements.
+- Permission templates: per-tool access levels (none, read, standard, admin) assignable to each project member.
 - Photo albums, captions, tags and EXIF capture dates; daily log sections for deliveries, calls, safety violations, quantities and waste, with the day's equipment and time.
 - Drawing sets: upload one PDF; sheet numbers and titles are read from each title block for review, then every page is published as a revision of its sheet.
 - Subcontractor invoicing portal, insurance compliance and lien waivers, with payment held until requirements are met.
