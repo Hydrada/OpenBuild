@@ -125,12 +125,14 @@ export function criticalPath(items: CpmItem[], links: CpmLink[], calendar?: Work
   return out;
 }
 
-export interface LevelItem extends CpmItem { resource_id: string | null; resource_units: number }
-export interface LevelResult { start_date: string; end_date: string; delay_days: number }
+/** `work_days`: actual working days for an already-split activity (its start/end span includes the gaps). */
+export interface LevelItem extends CpmItem { resource_id: string | null; resource_units: number; splittable?: boolean; work_days?: number }
+/** `segments` (splittable activities only): contiguous working-day runs as [start, end] pairs. */
+export interface LevelResult { start_date: string; end_date: string; delay_days: number; segments?: [string, string][] }
 
 /**
  * Serial resource levelling. Activities are placed in dependency order, picking the ready activity with the
- * earliest CPM start and then the least float, at the first working day where every link is satisfied (using the
+ * least float and then the earliest CPM start, at the first working day where every link is satisfied (using the
  * already-levelled dates of its predecessors) and its resource has spare capacity for the whole duration.
  * Durations, link types, lags and the calendar are preserved; only start dates move later.
  */
@@ -141,7 +143,7 @@ export function levelResources(items: LevelItem[], links: CpmLink[], capacity: M
   const lo = Math.min(...items.map((i) => calDay(i.start_date))) - 3650;
   const hi = Math.max(...items.map((i) => calDay(i.end_date))) + 3650 * 3;
   const W = workIndex(calendar, lo, hi);
-  const dur = new Map(items.map((i) => [i.id, W.span(i.start_date, i.end_date)]));
+  const dur = new Map(items.map((i) => [i.id, i.work_days ? i.work_days - 1 : W.span(i.start_date, i.end_date)]));
   for (const i of items) {
     if (i.resource_id && i.resource_units > (capacity.get(i.resource_id) ?? 0)) throw new Error(`"${i.id}" needs more units than its resource has`);
   }
@@ -164,7 +166,8 @@ export function levelResources(items: LevelItem[], links: CpmLink[], capacity: M
     const ready = items.filter((i) => !placed.has(i.id) && (preds.get(i.id) ?? []).every((l) => placed.has(l.predecessor_id)));
     ready.sort((a, b) => {
       const ca = cpm.get(a.id)!, cb = cpm.get(b.id)!;
-      return ca.early_start.localeCompare(cb.early_start) || ca.total_float - cb.total_float || a.id.localeCompare(b.id);
+      // Minimum float first: critical work claims resources, flexible work fills the gaps.
+      return ca.total_float - cb.total_float || ca.early_start.localeCompare(cb.early_start) || a.id.localeCompare(b.id);
     });
     const it = ready[0]!;
     const d = dur.get(it.id)!;
@@ -178,6 +181,26 @@ export function levelResources(items: LevelItem[], links: CpmLink[], capacity: M
         default: return pf + 1 + l.lag_days;
       }
     }));
+    if (it.resource_id && it.splittable && d > 0) {
+      // Splittable: take the earliest d+1 working days with spare capacity, not necessarily consecutive.
+      const cap = capacity.get(it.resource_id)!;
+      const days: number[] = [];
+      for (let t = s, guard = 0; days.length < d + 1; t++) {
+        if (fits(it.resource_id, cap, it.resource_units, t, 0)) days.push(t);
+        if (++guard > 20000) throw new Error("Could not level within the scheduling window");
+      }
+      for (const t of days) book(it.resource_id, it.resource_units, t, 0);
+      const segments: [string, string][] = [];
+      for (let i = 0; i < days.length; i++) {
+        if (i === 0 || days[i]! !== days[i - 1]! + 1) segments.push([W.date(days[i]!), W.date(days[i]!)]);
+        else segments[segments.length - 1]![1] = W.date(days[i]!);
+      }
+      // Successors see the true finish (last work day), so record it as the span the activity occupies.
+      placed.set(it.id, days[0]!);
+      dur.set(it.id, days.at(-1)! - days[0]!);
+      result.set(it.id, { start_date: W.date(days[0]!), end_date: W.date(days.at(-1)!), delay_days: days[0]! - W.idx(cpm.get(it.id)!.early_start), segments });
+      continue;
+    }
     if (it.resource_id) {
       const cap = capacity.get(it.resource_id)!;
       let guard = 0;
@@ -193,4 +216,13 @@ export function levelResources(items: LevelItem[], links: CpmLink[], capacity: M
   const finishBefore = [...cpm.values()].map((c) => c.early_finish).sort().at(-1)!;
   const finishAfter = [...result.values()].map((r) => r.end_date).sort().at(-1)!;
   return { result, finishBefore, finishAfter };
+}
+
+/** Working days covered by [start, end] segments under a calendar. */
+export function workingDaysIn(segments: [string, string][], calendar?: WorkCalendar): number {
+  if (!segments.length) return 0;
+  const lo = Math.min(...segments.map(([a]) => calDay(a))) - 1;
+  const hi = Math.max(...segments.map(([, b]) => calDay(b))) + 1;
+  const W = workIndex(calendar, lo, hi);
+  return segments.reduce((n, [a, b]) => n + W.span(a, b) + 1, 0);
 }

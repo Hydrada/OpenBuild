@@ -8,7 +8,7 @@ import type { ProjectInfo } from "../Project";
 interface Item {
   id: string; name: string; start_date: string; end_date: string; is_milestone: boolean; percent_complete: number;
   predecessor_id: string | null; predecessor_name: string | null; predecessors: { id: string; name: string; lagDays: number; type: string }[]; assignee_id: string | null; assignee_name: string | null;
-  resource_id: string | null; resource_units: number; resource_name: string | null;
+  resource_id: string | null; resource_units: number; resource_name: string | null; splittable: boolean; segments: [string, string][] | null;
   late: boolean; dependency_conflict: boolean; early_start: string; early_finish: string; total_float: number; critical: boolean;
 }
 
@@ -36,13 +36,14 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
     { name: "lagDays", label: "Lag (days)", type: "number" as const, step: "1" },
     { name: "resourceId", label: "Resource (crew / equipment)", type: "select" as const, options: (resources.data ?? []).map((r) => ({ value: r.id, label: `${r.name} (capacity ${r.capacity})` })) },
     { name: "resourceUnits", label: "Units used", type: "number" as const, min: "1" },
+    { name: "splittable", label: "May be split when levelling", type: "checkbox" as const },
     { name: "assigneeId", label: "Responsible", type: "select" as const, options },
     { name: "isMilestone", label: "Milestone", type: "checkbox" as const },
   ];
   const body = (v: Record<string, any>) => ({
     name: v.name, startDate: v.startDate, endDate: v.endDate || undefined, isMilestone: !!v.isMilestone,
     percentComplete: v.percentComplete === "" ? 0 : Number(v.percentComplete), predecessors: (v.predecessorIds as string[]).map((id) => ({ id, type: v.linkType || "FS", lagDays: Number(v.lagDays) || 0 })), assigneeId: v.assigneeId || null,
-    resourceId: v.resourceId || null, resourceUnits: Number(v.resourceUnits) || 1,
+    resourceId: v.resourceId || null, resourceUnits: Number(v.resourceUnits) || 1, splittable: !!v.splittable,
   });
 
   let chart = null;
@@ -61,6 +62,10 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
               {todayPos >= 0 && todayPos <= 1 && <span className="gantt-today" style={{ left: `${todayPos * 100}%` }} aria-hidden="true" />}
               {i.is_milestone ? (
                 <span className={`gantt-milestone ${i.late ? "late" : ""}`} style={{ left: pct(day(i.start_date)) }} title={`${i.name}: ${fmtDate(i.start_date)}`} />
+              ) : i.segments ? (
+                i.segments.map(([a, b]) => (
+                  <span key={a} className={`gantt-bar ${i.critical ? "critical" : ""}`} style={{ left: pct(day(a)), width: `calc(${((day(b) + 1 - day(a)) / span) * 100}% - 2px)` }} title={`${i.name}: ${fmtDate(a)} – ${fmtDate(b)}`} />
+                ))
               ) : (
                 <span className={`gantt-bar ${i.critical ? "critical" : ""} ${i.late ? "late" : ""} ${i.dependency_conflict ? "conflict" : ""}`}
                   style={{ left: pct(day(i.start_date)), width: `calc(${((day(i.end_date) + 1 - day(i.start_date)) / span) * 100}% - 2px)` }}
@@ -117,14 +122,14 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                   {items.map((i) => editing === i.id ? (
                     <tr key={i.id}><td colSpan={writable ? 10 : 9}>
                       <Form ariaLabel={`Edit ${i.name}`} submitLabel="Save" className="flat" onCancel={() => setEditing(null)} fields={fields(i.id)}
-                        initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorIds: i.predecessors.map((p) => p.id), linkType: i.predecessors[0]?.type ?? "FS", lagDays: String(i.predecessors[0]?.lagDays ?? 0), resourceId: i.resource_id ?? "", resourceUnits: String(i.resource_units), assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
+                        initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorIds: i.predecessors.map((p) => p.id), linkType: i.predecessors[0]?.type ?? "FS", lagDays: String(i.predecessors[0]?.lagDays ?? 0), resourceId: i.resource_id ?? "", resourceUnits: String(i.resource_units), splittable: i.splittable, assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
                         onSubmit={async (v) => { await api("PATCH", `/schedule/${i.id}`, body(v)); setEditing(null); list.reload(); }} />
                     </td></tr>
                   ) : (
                     <tr key={i.id}>
                       <td>{i.is_milestone ? "◆ " : ""}{i.name}</td>
                       <td>{fmtDate(i.start_date)}</td>
-                      <td>{i.is_milestone ? "—" : fmtDate(i.end_date)}</td>
+                      <td>{i.is_milestone ? "—" : fmtDate(i.end_date)}{i.segments && <div className="muted small">split: {i.segments.map(([a, b]) => a === b ? fmtDate(a) : `${fmtDate(a)}–${fmtDate(b)}`).join(", ")}</div>}</td>
                       <td>{i.percent_complete}</td>
                       <td>{fmtDate(i.early_start)}</td>
                       <td>{i.total_float}</td>
@@ -197,7 +202,7 @@ function Resources({ projectId, manage, onChanged }: { projectId: string; manage
           <h3>Levelling</h3>
           {preview.data.changes.length === 0 ? <p className="muted">No over-allocations — nothing to level.</p> : (
             <>
-              <ul className="list">{preview.data.changes.map((c) => <li key={c.id}>{c.name}: {fmtDate(c.from)} → <strong>{fmtDate(c.start_date)}</strong></li>)}</ul>
+              <ul className="list">{preview.data.changes.map((c) => <li key={c.id}>{c.name}: {fmtDate(c.from)} → <strong>{fmtDate(c.start_date)}</strong>{c.segments?.length > 1 && <span className="muted small"> (split into {c.segments.length} parts)</span>}</li>)}</ul>
               <p className="muted small">Project finish {fmtDate(preview.data.finishBefore)} → {fmtDate(preview.data.finishAfter)}</p>
               <ActionButton className="primary" confirm="Move these activities to the levelled dates?" onClick={async () => { await api("POST", `/projects/${projectId}/schedule/level`); preview.reload(); onChanged(); }}>Apply levelling</ActionButton>
             </>

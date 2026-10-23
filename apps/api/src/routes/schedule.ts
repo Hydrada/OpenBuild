@@ -3,7 +3,7 @@ import { z } from "zod";
 import { type AppConfig, requireUser } from "../app.js";
 import type { Queryable } from "../db/db.js";
 import { audit } from "../lib/audit.js";
-import { assertAcyclic, criticalPath, levelResources, type CpmLink, type LevelItem, type WorkCalendar } from "../lib/cpm.js";
+import { assertAcyclic, criticalPath, levelResources, workingDaysIn, type CpmLink, type LevelItem, type WorkCalendar } from "../lib/cpm.js";
 import { HttpError } from "../lib/errors.js";
 import { parseMsProjectXml } from "../lib/msproject.js";
 import { requireProject } from "../lib/permissions.js";
@@ -25,8 +25,9 @@ const input = z.object({
   assigneeId: z.uuid().nullable().optional(),
   resourceId: z.uuid().nullable().optional(),
   resourceUnits: z.number().int().min(1).max(10000).optional(),
+  splittable: z.boolean().optional(),
 });
-const COLS = { name: "name", startDate: "start_date", endDate: "end_date", isMilestone: "is_milestone", percentComplete: "percent_complete", assigneeId: "assignee_id", resourceId: "resource_id", resourceUnits: "resource_units" };
+const COLS = { name: "name", startDate: "start_date", endDate: "end_date", isMilestone: "is_milestone", percentComplete: "percent_complete", assigneeId: "assignee_id", resourceId: "resource_id", resourceUnits: "resource_units", splittable: "splittable" };
 
 function predecessorsOf(b: z.infer<typeof input> | Partial<z.infer<typeof input>>) {
   if (b.predecessors) return b.predecessors;
@@ -80,7 +81,7 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     await requireProject(db, user.id, req.params.projectId, "read.full");
     const rows = await db.query<{ id: string; start_date: string; end_date: string; percent_complete: number; name: string }>(
       `SELECT s.id, s.name, s.start_date, s.end_date, s.is_milestone, s.percent_complete, s.assignee_id, s.external_ref, u.name AS assignee_name,
-              s.resource_id, s.resource_units, r.name AS resource_name
+              s.resource_id, s.resource_units, r.name AS resource_name, s.splittable, s.segments
          FROM schedule_items s LEFT JOIN users u ON u.id = s.assignee_id LEFT JOIN schedule_resources r ON r.id = s.resource_id
         WHERE s.project_id = $1 ORDER BY s.start_date, s.end_date, s.name`,
       [req.params.projectId],
@@ -137,9 +138,9 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
       if (b.assigneeId) await assertProjectMember(q, project.id, b.assigneeId);
       await assertResource(q, project.id, b.resourceId);
       const [r] = await q.query<{ id: string }>(
-        `INSERT INTO schedule_items (project_id, name, start_date, end_date, is_milestone, percent_complete, assignee_id, resource_id, resource_units, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-        [project.id, b.name, b.startDate, end, b.isMilestone, b.percentComplete, b.assigneeId ?? null, b.resourceId ?? null, b.resourceUnits ?? 1, user.id],
+        `INSERT INTO schedule_items (project_id, name, start_date, end_date, is_milestone, percent_complete, assignee_id, resource_id, resource_units, splittable, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+        [project.id, b.name, b.startDate, end, b.isMilestone, b.percentComplete, b.assigneeId ?? null, b.resourceId ?? null, b.resourceUnits ?? 1, b.splittable ?? false, user.id],
       );
       await setLinks(q, project.id, r!.id, predecessorsOf(b) ?? []);
       await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "schedule.create", entityType: "schedule_item", entityId: r!.id, detail: { name: b.name, milestone: b.isMilestone } });
@@ -207,11 +208,13 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
   });
 
   async function levelling(q: Queryable, projectId: string) {
-    const items = await q.query<LevelItem & { name: string }>("SELECT id, name, start_date, end_date, resource_id, resource_units FROM schedule_items WHERE project_id = $1", [projectId]);
+    const items = await q.query<LevelItem & { name: string; segments: [string, string][] | null }>("SELECT id, name, start_date, end_date, resource_id, resource_units, splittable, segments FROM schedule_items WHERE project_id = $1", [projectId]);
     if (!items.length) throw new HttpError(400, "The schedule is empty");
+    const calendar = await calendarOf(q, projectId);
+    for (const i of items) if (i.segments?.length) i.work_days = workingDaysIn(i.segments, calendar);
     const caps = await q.query<{ id: string; capacity: number }>("SELECT id, capacity FROM schedule_resources WHERE project_id = $1", [projectId]);
     try {
-      const out = levelResources(items, await linksFor(q, projectId), new Map(caps.map((c) => [c.id, c.capacity])), await calendarOf(q, projectId));
+      const out = levelResources(items, await linksFor(q, projectId), new Map(caps.map((c) => [c.id, c.capacity])), calendar);
       return { items, ...out };
     } catch (e) {
       throw new HttpError(400, (e as Error).message);
@@ -225,7 +228,12 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     const { items, result, finishBefore, finishAfter } = await levelling(db, req.params.projectId);
     return {
       finishBefore, finishAfter,
-      changes: items.map((i) => ({ id: i.id, name: i.name, from: i.start_date, ...result.get(i.id)! })).filter((c) => c.start_date !== c.from).sort((a, b) => a.start_date.localeCompare(b.start_date)),
+      // Moved, stretched or split activities.
+      changes: items
+        .map((i) => ({ id: i.id, name: i.name, from: i.start_date, fromEnd: i.end_date, saved: i.segments, ...result.get(i.id)! }))
+        .filter((c) => c.start_date !== c.from || c.end_date !== c.fromEnd || JSON.stringify((c.segments?.length ?? 0) > 1 ? c.segments : null) !== JSON.stringify(c.saved ?? null))
+        .map(({ saved: _saved, fromEnd: _fromEnd, ...c }) => c)
+        .sort((a, b) => a.start_date.localeCompare(b.start_date)),
     };
   });
 
@@ -238,8 +246,9 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
       let moved = 0;
       for (const i of items) {
         const r = result.get(i.id)!;
-        if (r.start_date === i.start_date && r.end_date === i.end_date) continue;
-        await q.query("UPDATE schedule_items SET start_date = $2, end_date = $3 WHERE id = $1", [i.id, r.start_date, r.end_date]);
+        const segments = r.segments && r.segments.length > 1 ? JSON.stringify(r.segments) : null;
+        if (r.start_date === i.start_date && r.end_date === i.end_date && !segments) continue;
+        await q.query("UPDATE schedule_items SET start_date = $2, end_date = $3, segments = $4 WHERE id = $1", [i.id, r.start_date, r.end_date, segments]);
         moved++;
       }
       await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "schedule.level", entityType: "project", entityId: project.id, detail: { moved, finishBefore, finishAfter } });

@@ -2,7 +2,7 @@
  * Generates a small but geometrically real IFC4 file: each box is an IfcBuildingElementProxy (or given type)
  * with an extruded rectangle placed at (x, y, z). Sizes in metres.
  */
-export interface Box { type?: string; name: string; x: number; y: number; z: number; dx: number; dy: number; dz: number }
+export interface Box { type?: string; name: string; x: number; y: number; z: number; dx: number; dy: number; dz: number; /** Rotation about Z, degrees. */ angleDeg?: number }
 
 export function ifcWithBoxes(boxes: Box[], projectName = "Test"): Buffer {
   let n = 100;
@@ -23,7 +23,9 @@ export function ifcWithBoxes(boxes: Box[], projectName = "Test"): Buffer {
   const elems: string[] = [];
   for (const b of boxes) {
     const pt = add(`IFCCARTESIANPOINT((${b.x.toFixed(3)},${b.y.toFixed(3)},${b.z.toFixed(3)}))`);
-    const ax = add(`IFCAXIS2PLACEMENT3D(${pt},${zAxis},${xAxis})`);
+    const rad = ((b.angleDeg ?? 0) * Math.PI) / 180;
+    const ref = b.angleDeg ? add(`IFCDIRECTION((${Math.cos(rad).toFixed(6)},${Math.sin(rad).toFixed(6)},0.))`) : xAxis;
+    const ax = add(`IFCAXIS2PLACEMENT3D(${pt},${zAxis},${ref})`);
     const lp = add(`IFCLOCALPLACEMENT(${sitePl},${ax})`);
     const c2 = add(`IFCCARTESIANPOINT((${(b.dx / 2).toFixed(3)},${(b.dy / 2).toFixed(3)}))`);
     const a2 = add(`IFCAXIS2PLACEMENT2D(${c2},$)`);

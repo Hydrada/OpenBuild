@@ -72,3 +72,20 @@ test("resource levelling: preview and apply", async ({ browser }) => {
   await expect(panel.getByText("No over-allocations — nothing to level.")).toBeVisible();
   await expect(owner.getByRole("row", { name: /Slab on grade/ })).toContainText(new Date("2026-03-07T00:00:00").toLocaleDateString());
 });
+
+test("levelling splits a splittable activity around critical work", async ({ browser }) => {
+  const { api } = await import("./helpers");
+  const w = await world(browser);
+  const { owner } = w;
+  const crew = await api(owner).post(`/projects/${w.projectId}/resources`, { name: "Finishing crew", capacity: 1 });
+  const a = await api(owner).post(`/projects/${w.projectId}/schedule`, { name: "Critical paint", startDate: "2026-03-03", endDate: "2026-03-04", resourceId: crew.id });
+  await api(owner).post(`/projects/${w.projectId}/schedule`, { name: "Handover", startDate: "2026-03-05", endDate: "2026-03-20", predecessors: [{ id: a.id }] });
+  await api(owner).post(`/projects/${w.projectId}/schedule`, { name: "Touch-ups", startDate: "2026-03-01", endDate: "2026-03-04", resourceId: crew.id, splittable: true });
+  await openProject(owner, w, "Schedule");
+  const panel = owner.getByRole("region", { name: "Resources" });
+  await expect(panel.getByText(/Touch-ups:.*\(split into 2 parts\)/)).toBeVisible();
+  await panel.getByRole("button", { name: "Apply levelling" }).click();
+  await owner.getByRole("button", { name: "Confirm" }).click();
+  await expect(owner.getByRole("row", { name: /Touch-ups/ })).toContainText("split:");
+  await expect(panel.getByText("No over-allocations — nothing to level.")).toBeVisible();
+});

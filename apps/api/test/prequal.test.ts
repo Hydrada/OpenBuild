@@ -94,6 +94,27 @@ describe("resource levelling", () => {
     expect(() => levelResources([{ ...items[0]!, resource_units: 3 }], [], new Map([["crew", 2]]))).toThrow(/more units/);
   });
 
+  it("splits a splittable activity around critical work instead of delaying it", () => {
+    const items = [
+      { id: "A", start_date: "2026-03-03", end_date: "2026-03-04", resource_id: "crew", resource_units: 1 },
+      { id: "B", start_date: "2026-03-01", end_date: "2026-03-04", resource_id: "crew", resource_units: 1, splittable: true },
+      { id: "D", start_date: "2026-03-05", end_date: "2026-03-20", resource_id: null, resource_units: 1 },
+    ];
+    const links = [{ successor_id: "D", predecessor_id: "A", lag_days: 0, link_type: "FS" as const }];
+    const split = levelResources(items, links, new Map([["crew", 1]])).result.get("B")!;
+    expect(split.segments).toEqual([["2026-03-01", "2026-03-02"], ["2026-03-05", "2026-03-06"]]);
+    expect(split).toMatchObject({ start_date: "2026-03-01", end_date: "2026-03-06" });
+    const whole = levelResources(items.map((i) => ({ ...i, splittable: false })), links, new Map([["crew", 1]])).result.get("B")!;
+    expect(whole).toMatchObject({ start_date: "2026-03-05", end_date: "2026-03-08" }); // finishes 2 days later unsplit
+  });
+
+  it("counts working days in split segments with the calendar", async () => {
+    const { workingDaysIn } = await import("../src/lib/cpm.js");
+    // Fri 03-06 to Tue 03-10 spans a weekend: 3 working days Mon–Fri calendar, plus 1 for 03-12.
+    expect(workingDaysIn([["2026-03-06", "2026-03-10"], ["2026-03-12", "2026-03-12"]], { workDays: [1, 2, 3, 4, 5], holidays: [] })).toBe(4);
+    expect(workingDaysIn([["2026-03-06", "2026-03-10"]])).toBe(5);
+  });
+
   it("previews and applies levelling through the API", async () => {
     const P = `/api/projects/${projectId}`;
     const crew = (await owner.post(`${P}/resources`, { name: "Concrete crew", capacity: 1 })).body;

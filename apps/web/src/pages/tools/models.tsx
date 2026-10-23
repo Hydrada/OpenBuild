@@ -69,6 +69,7 @@ function ClashRunner({ projectId, models }: { projectId: string; models: any[] }
             { label: "Element A", render: (c: any) => `${c.a.name ?? c.a.id} (${c.a.type})` },
             { label: "Element B", render: (c: any) => `${c.b.name ?? c.b.id} (${c.b.type})` },
             { label: "Overlap (m)", render: (c: any) => c.overlapM.join(" × ") },
+            { label: "Check", render: (c: any) => c.exact ? "Geometry" : "Bounding box" },
           ]} />
         </details>
       ))}

@@ -899,4 +899,12 @@ CREATE TABLE clash_runs (
 );
 `,
   },
+  {
+    id: "0018_splittable",
+    sql: /* sql */ `
+-- Activities that may be interrupted during resource levelling, and the work segments levelling chose.
+ALTER TABLE schedule_items ADD COLUMN splittable boolean NOT NULL DEFAULT false;
+ALTER TABLE schedule_items ADD COLUMN segments jsonb;
+`,
+  },
 ];

@@ -84,3 +84,29 @@ describe("clash detection", () => {
     expect(history[0]).toMatchObject({ model_a: "Architecture v1", model_b: "MEP v1", clash_count: 1, run_by: "Olive Owner" });
   });
 });
+
+describe("exact clash confirmation", () => {
+  it("separates true interference from bounding-box-only overlaps", async () => {
+    const { ifcWithBoxes } = await import("./ifc-fixture.js");
+    const { elementBoxes, findClashes } = await import("../src/lib/ifc-geometry.js");
+    const { trianglesIntersect } = await import("../src/lib/mesh-intersect.js");
+    expect(trianglesIntersect([0, 0, 0, 1, 0, 0, 0, 1, 0], [0.2, 0.2, -1, 0.2, 0.2, 1, 0.8, 0.2, 0])).toBe(true);
+    expect(trianglesIntersect([0, 0, 0, 1, 0, 0, 0, 1, 0], [0, 0, 1, 1, 0, 1, 0, 1, 1])).toBe(false);
+
+    // A 10 m beam at 45°: its bounding box is a 7 x 7 m square.
+    const structure = await elementBoxes(new Uint8Array(ifcWithBoxes([{ name: "Diagonal beam", x: 0, y: 0, z: 3, dx: 10, dy: 0.3, dz: 0.5, angleDeg: 45 }])));
+    const services = await elementBoxes(new Uint8Array(ifcWithBoxes([
+      { type: "IFCCOLUMN", name: "Column near corner", x: 6, y: 0.5, z: 0, dx: 0.4, dy: 0.4, dz: 5 },      // inside the bbox, far from the beam line
+      { type: "IFCCOLUMN", name: "Column on the beam", x: 3.4, y: 3.4, z: 0, dx: 0.4, dy: 0.4, dz: 5 },    // the beam passes through it
+    ])));
+    const coarse = findClashes(structure, services, 0.01, 500, false).map((c) => c.b.name).sort();
+    const exact = findClashes(structure, services, 0.01, 500, true).map((c) => c.b.name);
+    expect(coarse).toEqual(["Column near corner", "Column on the beam"]);
+    expect(exact).toEqual(["Column on the beam"]);
+
+    // Fully contained element (pipe inside a thick wall) has no crossing surfaces but is still a clash.
+    const wall = await elementBoxes(new Uint8Array(ifcWithBoxes([{ type: "IFCWALL", name: "Thick wall", x: 0, y: 0, z: 0, dx: 2, dy: 1, dz: 3 }])));
+    const pipe = await elementBoxes(new Uint8Array(ifcWithBoxes([{ type: "IFCPIPESEGMENT", name: "Embedded pipe", x: 0.5, y: 0.4, z: 1, dx: 0.1, dy: 0.1, dz: 1 }])));
+    expect(findClashes(wall, pipe).map((c) => [c.b.name, c.exact])).toEqual([["Embedded pipe", true]]);
+  });
+});

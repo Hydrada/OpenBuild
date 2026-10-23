@@ -83,7 +83,7 @@ export const bimRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
     }
     const results = clashes.map((c) => ({
       a: { id: c.a.globalId, type: c.a.type, name: c.a.name }, b: { id: c.b.globalId, type: c.b.type, name: c.b.name },
-      overlapM: c.overlap, volumeM3: c.volume,
+      overlapM: c.overlap, volumeM3: c.volume, exact: c.exact,
     }));
     const [run] = await db.tx(async (q) => {
       const r = await q.query<{ id: string }>(
