@@ -323,6 +323,104 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     });
     return reply.code(201).send(result);
   });
+  // ---------- Lookahead (short-interval planning) ----------
+
+  const laFields = z.object({
+    name: z.string().trim().min(1).max(300),
+    startDate: z.iso.date(),
+    endDate: z.iso.date(),
+    scheduleItemId: z.uuid().nullable().optional(),
+    company: z.string().trim().max(200).nullable().optional(),
+    assigneeId: z.uuid().nullable().optional(),
+    crewSize: z.number().int().min(0).max(10000).nullable().optional(),
+    status: z.enum(["planned", "in_progress", "done", "blocked"]),
+    constraintNote: z.string().trim().max(2000).nullable().optional(),
+  });
+  const laCols = { name: "name", startDate: "start_date", endDate: "end_date", scheduleItemId: "schedule_item_id", company: "company", assigneeId: "assignee_id", crewSize: "crew_size", status: "status", constraintNote: "constraint_note" };
+
+  async function checkLookahead(q: Queryable, projectId: string, b: Partial<z.infer<typeof laFields>>) {
+    if (b.scheduleItemId && !(await q.query("SELECT 1 FROM schedule_items WHERE id = $1 AND project_id = $2", [b.scheduleItemId, projectId])).length) throw new HttpError(400, "Activity not found in this project");
+    if (b.assigneeId) await assertProjectMember(q, projectId, b.assigneeId);
+    if (b.status === "blocked" && !b.constraintNote) throw new HttpError(400, "Say what is blocking the task");
+  }
+
+  /**
+   * The next `weeks` weeks from `from` (default: this Monday): one column per calendar day flagged working/non-working,
+   * every master activity overlapping the window with its float, and the lookahead tasks under them.
+   */
+  app.get<P & { Querystring: { from?: string; weeks?: string } }>("/projects/:projectId/lookahead", async (req) => {
+    const user = requireUser(req);
+    await requireProject(db, user.id, req.params.projectId, "read.full");
+    const qs = z.object({ from: z.iso.date().optional(), weeks: z.coerce.number().int().min(1).max(12).default(3) }).parse(req.query);
+    const monday = () => { const d = new Date(); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+    const from = qs.from ?? monday();
+    const to = new Date((day(from) + qs.weeks * 7 - 1) * 86_400_000).toISOString().slice(0, 10);
+    const cal = await calendarOf(db, req.params.projectId);
+    const off = new Set(cal.holidays);
+    const days = Array.from({ length: qs.weeks * 7 }, (_, i) => {
+      const d = new Date((day(from) + i) * 86_400_000);
+      const iso = d.toISOString().slice(0, 10);
+      return { date: iso, working: cal.workDays.includes(d.getUTCDay()) && !off.has(iso) };
+    });
+    const all = await db.query<{ id: string; start_date: string; end_date: string }>("SELECT id, start_date, end_date FROM schedule_items WHERE project_id = $1", [req.params.projectId]);
+    const cpm = all.length ? criticalPath(all, await linksFor(db, req.params.projectId), cal) : new Map();
+    const activities = (await db.query<{ id: string }>(
+      `SELECT s.id, s.name, s.start_date, s.end_date, s.is_milestone, s.percent_complete, u.name AS assignee_name
+         FROM schedule_items s LEFT JOIN users u ON u.id = s.assignee_id
+        WHERE s.project_id = $1 AND s.start_date <= $3 AND s.end_date >= $2 ORDER BY s.start_date, s.name`,
+      [req.params.projectId, from, to],
+    )).map((a) => ({ ...a, total_float: cpm.get(a.id)?.total_float ?? null, critical: cpm.get(a.id)?.critical ?? false }));
+    const tasks = await db.query(
+      `SELECT t.id, t.schedule_item_id, t.name, t.start_date, t.end_date, t.company, t.assignee_id, u.name AS assignee_name, t.crew_size, t.status, t.constraint_note
+         FROM lookahead_tasks t LEFT JOIN users u ON u.id = t.assignee_id
+        WHERE t.project_id = $1 AND t.start_date <= $3 AND t.end_date >= $2 ORDER BY t.start_date, t.name`,
+      [req.params.projectId, from, to],
+    );
+    return { from, to, days, activities, tasks };
+  });
+
+  app.post<P>("/projects/:projectId/lookahead-tasks", async (req, reply) => {
+    const user = requireUser(req);
+    const { project } = await requireProject(db, user.id, req.params.projectId, "record.write");
+    const b = laFields.extend({ status: laFields.shape.status.default("planned") }).parse(req.body);
+    if (b.endDate < b.startDate) throw new HttpError(400, "Finish must be on or after start");
+    const row = await db.tx(async (q) => {
+      await checkLookahead(q, project.id, b);
+      const [t] = await q.query<{ id: string }>(
+        `INSERT INTO lookahead_tasks (project_id, schedule_item_id, name, start_date, end_date, company, assignee_id, crew_size, status, constraint_note, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+        [project.id, b.scheduleItemId ?? null, b.name, b.startDate, b.endDate, b.company ?? null, b.assigneeId ?? null, b.crewSize ?? null, b.status, b.constraintNote ?? null, user.id],
+      );
+      await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "lookahead.create", entityType: "project", entityId: project.id, detail: { name: b.name } });
+      if (b.assigneeId) await config.notify(q, [b.assigneeId], { kind: "lookahead", title: `Lookahead task: ${b.name}`, link: `/projects/${project.id}/lookahead`, projectId: project.id, actorId: user.id });
+      return t!;
+    });
+    return reply.code(201).send(row);
+  });
+
+  app.patch<Id>("/lookahead-tasks/:id", async (req) => {
+    const user = requireUser(req);
+    const { row, access } = await loadInProject<{ id: string; project_id: string; start_date: string; end_date: string; status: string; constraint_note: string | null }>(db, "lookahead_tasks", req.params.id, user.id, "record.write", "Lookahead task");
+    const b = editable(laFields).parse(req.body);
+    if ((b.endDate ?? row.end_date) < (b.startDate ?? row.start_date)) throw new HttpError(400, "Finish must be on or after start");
+    await db.tx(async (q) => {
+      await checkLookahead(q, row.project_id, { ...b, constraintNote: b.constraintNote === undefined ? row.constraint_note : b.constraintNote });
+      const { sets, values } = toSet(b, laCols);
+      if (sets.length) await q.query(`UPDATE lookahead_tasks SET ${sets.join(", ")} WHERE id = $1`, [row.id, ...values]);
+      await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: "lookahead.update", entityType: "project", entityId: row.project_id, detail: { task: row.id, ...b } });
+    });
+    return { ok: true };
+  });
+
+  app.delete<Id>("/lookahead-tasks/:id", async (req) => {
+    const user = requireUser(req);
+    const { row, access } = await loadInProject<{ id: string; project_id: string; name: string }>(db, "lookahead_tasks", req.params.id, user.id, "record.write", "Lookahead task");
+    await db.tx(async (q) => {
+      await q.query("DELETE FROM lookahead_tasks WHERE id = $1", [row.id]);
+      await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: "lookahead.delete", entityType: "project", entityId: row.project_id, detail: { name: row.name } });
+    });
+    return { ok: true };
+  });
 };
 
 const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000;

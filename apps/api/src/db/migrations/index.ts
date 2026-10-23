@@ -1087,4 +1087,27 @@ CREATE TABLE coordination_issues (
 );
 `,
   },
+  {
+    id: "0022_lookahead",
+    sql: /* sql */ `
+-- Lookahead tasks: short-interval work broken out under master-schedule activities.
+CREATE TABLE lookahead_tasks (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id       uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  schedule_item_id uuid REFERENCES schedule_items(id) ON DELETE SET NULL,
+  name             text NOT NULL,
+  start_date       date NOT NULL,
+  end_date         date NOT NULL,
+  company          text,
+  assignee_id      uuid REFERENCES users(id) ON DELETE SET NULL,
+  crew_size        int CHECK (crew_size BETWEEN 0 AND 10000),
+  status           text NOT NULL DEFAULT 'planned' CHECK (status IN ('planned','in_progress','done','blocked')),
+  constraint_note  text,
+  created_by       uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  CHECK (end_date >= start_date)
+);
+CREATE INDEX lookahead_tasks_window ON lookahead_tasks (project_id, start_date, end_date);
+`,
+  },
 ];

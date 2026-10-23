@@ -50,6 +50,9 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 
 /* ---------- Project workspace ---------- */
 .project-head h1 { margin-bottom: .2rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+.project-search form { display: flex; gap: .4rem; max-width: 36rem; margin-top: .4rem; }
+.project-search input[type=search] { flex: 1; }
+.project-search .search-results { margin-top: .6rem; }
 .project-body { display: grid; grid-template-columns: 190px 1fr; gap: 1.25rem; margin-top: 1rem; align-items: start; }
 .tool-nav { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: .75rem; }
 .tool-nav a { display: block; padding: .3rem .6rem; border-radius: 6px; text-decoration: none; color: #344054; }
@@ -128,3 +131,15 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 .secret { font-size: 1.1rem; letter-spacing: .08em; background: #f2f4f7; padding: .3rem .5rem; border-radius: 4px; }
 .attendees { border: 1px solid var(--line); border-radius: 6px; display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; }
 .attendees legend { font-size: .85rem; color: var(--muted); }
+
+/* ---------- Lookahead grid ---------- */
+.la-grid th.la-day, .la-grid td.la-cell { width: 1.6rem; min-width: 1.6rem; padding: 0; text-align: center; font-size: .72rem; }
+.la-grid .off { background: var(--surface-2, #f1f1f1); }
+.la-grid td.bar { background: #2563eb; }
+.la-grid td.bar.critical { background: #b91c1c; }
+.la-grid td.bar.task { background: #60a5fa; }
+.la-grid td.bar.task.done { background: #15803d; }
+.la-grid td.bar.task.blocked { background: repeating-linear-gradient(45deg, #b45309, #b45309 4px, #fde68a 4px, #fde68a 8px); }
+.la-grid tr.la-activity th { font-weight: 600; text-align: left; }
+.la-grid .danger { color: #b91c1c; }
+@media print { .tool-nav, .tool-bar, .project-search, header.top { display: none !important; } .project-body { display: block; } }

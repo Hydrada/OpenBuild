@@ -35,7 +35,7 @@ curl -s -H "Authorization: Bearer $KEY" -F number=A-101 -F title="Ground floor" 
 
 ## Endpoints
 
-Generated from the server's route table (217 routes) by `scripts/gen-api-doc.mjs`. Permission checks are documented in [ARCHITECTURE.md](ARCHITECTURE.md#adr-004--permission-model-2026-10-22).
+Generated from the server's route table (222 routes) by `scripts/gen-api-doc.mjs`. Permission checks are documented in [ARCHITECTURE.md](ARCHITECTURE.md#adr-004--permission-model-2026-10-22).
 
 | Method | Path |
 |---|---|
@@ -189,6 +189,10 @@ Generated from the server's route table (217 routes) by `scripts/gen-api-doc.mjs
 | `GET` | `/api/projects/:projectId/schedule/level` |
 | `POST` | `/api/projects/:projectId/schedule/level` |
 | `POST` | `/api/projects/:projectId/schedule/import` |
+| `GET` | `/api/projects/:projectId/lookahead` |
+| `POST` | `/api/projects/:projectId/lookahead-tasks` |
+| `PATCH` | `/api/lookahead-tasks/:id` |
+| `DELETE` | `/api/lookahead-tasks/:id` |
 | `GET` | `/api/projects/:projectId/meetings` |
 | `POST` | `/api/projects/:projectId/meetings` |
 | `GET` | `/api/meetings/:id` |
@@ -256,3 +260,4 @@ Generated from the server's route table (217 routes) by `scripts/gen-api-doc.mjs
 | `GET` | `/api/projects/:projectId/timesheets/payroll` |
 | `GET` | `/api/projects/:projectId/timesheets/payroll.csv` |
 | `POST` | `/api/projects/:projectId/timesheets/mark-exported` |
+| `GET` | `/api/projects/:projectId/search` |

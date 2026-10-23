@@ -11,6 +11,7 @@ import { BiddingTool } from "./tools/bidding";
 import { MeetingsTool, TimesheetsTool } from "./tools/meetings";
 import { ModelsTool } from "./tools/models";
 import { ScheduleTool } from "./tools/schedule";
+import { LookaheadTool } from "./tools/lookahead";
 import { ActionPlansTool, CoordinationIssuesTool, WarrantiesTool } from "./tools/closeout";
 import { CorrespondenceTool, DirectCostsTool, EquipmentTool, TmTicketsTool } from "./tools/project-tools";
 import { BudgetTool, ChangeEventsTool, ChangeOrdersTool, ContractsTool, InvoicesTool } from "./tools/financials";
@@ -22,6 +23,7 @@ interface Tool { id: string; label: string; group: string; external?: boolean; r
 const TOOLS: Tool[] = [
   { id: "home", label: "Home", group: "Project", render: (p) => <Home project={p} /> },
   { id: "schedule", label: "Schedule", group: "Project", render: (p) => <ScheduleTool project={p} /> },
+  { id: "lookahead", label: "Lookahead", group: "Project", render: (p) => <LookaheadTool project={p} /> },
   { id: "meetings", label: "Meetings", group: "Project", render: (p) => <MeetingsTool project={p} /> },
   { id: "correspondence", label: "Correspondence", group: "Project", external: true, render: (p) => <CorrespondenceTool project={p} /> },
   { id: "action-plans", label: "Action plans", group: "Project", external: true, render: (p) => <ActionPlansTool project={p} /> },
@@ -71,6 +73,7 @@ export function ProjectPage({ projectId, tool }: { projectId: string; tool: stri
           {p.code && <>#{p.code} · </>}{p.address && <>{p.address} · </>}
           {fmtDate(p.start_date)} – {fmtDate(p.end_date)} · your role: <strong>{label(p.myRole)}</strong>
         </p>
+        <ProjectSearch projectId={p.id} />
       </header>
       <div className="project-body">
         <nav className="tool-nav" aria-label="Project tools">
@@ -205,5 +208,32 @@ function Settings({ project, onSaved }: { project: ProjectInfo; onSaved: () => v
         </div>
       </section>
     </>
+  );
+}
+
+/** Search box for the whole project; results respect the caller's permissions (the server filters them). */
+function ProjectSearch({ projectId }: { projectId: string }) {
+  const [q, setQ] = useState("");
+  const [submitted, setSubmitted] = useState("");
+  const results = useApi<{ results: { kind: string; kindLabel: string; id: string; ref: string | null; title: string; status: string | null; href: string }[] }>(
+    submitted.length >= 2 ? `/projects/${projectId}/search?q=${encodeURIComponent(submitted)}` : null,
+  );
+  return (
+    <div className="project-search">
+      <form role="search" aria-label="Search this project" onSubmit={(e) => { e.preventDefault(); setSubmitted(q.trim()); }}>
+        <input type="search" aria-label="Search this project" placeholder="Search RFIs, drawings, punch, correspondence…" value={q} onChange={(e) => { setQ(e.target.value); if (!e.target.value) setSubmitted(""); }} />
+        <button type="submit">Search</button>
+      </form>
+      {submitted.length >= 2 && (
+        <section className="card search-results" aria-label="Search results">
+          <ErrorText error={results.error} />
+          <DataTable rows={results.data?.results.map((r) => ({ ...r, id: `${r.kind}:${r.id}` })) ?? null} href={(r) => r.href} empty={`Nothing matches "${submitted}".`} caption="Search results" columns={[
+            { label: "Record", render: (r) => r.ref ? `${r.ref} · ${r.title}` : r.title },
+            { label: "Tool", render: (r) => r.kindLabel },
+            { label: "Status", render: (r) => r.status ? <Badge value={r.status} /> : "" },
+          ]} />
+        </section>
+      )}
+    </div>
   );
 }
