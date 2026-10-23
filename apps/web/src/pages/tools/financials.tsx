@@ -4,6 +4,7 @@ import { Approvals, Comments, canManage, canWrite, useMemberOptions } from "../.
 import { ActionButton, Badge, Creator, DataTable, Empty, ErrorText, Form, KeyValues, Link, Loading, Money, PageHead } from "../../components/ui";
 import { useAction, useApi } from "../../hooks";
 import type { ProjectInfo } from "../Project";
+import { ComplianceSection, ContractContacts, LienWaivers } from "./subcontract";
 
 interface CostCode { id: string; code: string; description: string }
 interface Line { costCodeId: string; description: string; amount: string }
@@ -221,6 +222,8 @@ export function ContractPage({ id }: { id: string }) {
           { label: "Source", render: (s: any) => s.source }, { label: "Scheduled value", render: (s: any) => <Money value={s.scheduled_value} /> },
         ]} />
       </section>
+      {k.kind !== "prime" && manager && <ContractContacts contract={k} projectId={k.project_id} />}
+      {k.kind !== "prime" && <ComplianceSection contractId={k.id} projectId={k.project_id} manager={manager} canUpload={canWrite(k.myRole)} />}
       <div className="grid-2">
         <section className="card">
           <h2>Change orders</h2>
@@ -429,7 +432,8 @@ export function InvoicePage({ id }: { id: string }) {
   if (r.error) return <ErrorText error={r.error} />;
   if (!pa) return <Loading />;
   const inv = pa.invoice;
-  const editable = canWrite(pa.myRole) && ["draft", "rejected"].includes(inv.status);
+  const team = canWrite(pa.myRole);
+  const editable = (team || pa.isContact) && ["draft", "rejected"].includes(inv.status);
   const t = pa.totals;
   async function save() {
     const ok = await run(() => api("PUT", `/invoices/${inv.id}/lines`, {
@@ -439,12 +443,12 @@ export function InvoicePage({ id }: { id: string }) {
   }
   return (
     <>
-      <PageHead pdf={`/invoices/${inv.id}/pdf`} back={{ to: `/projects/${inv.project_id}/invoices`, label: "Invoices" }} title={<>Invoice #{inv.number} <Badge value={inv.status} /></>}
+      <PageHead pdf={`/invoices/${inv.id}/pdf`} back={team ? { to: `/projects/${inv.project_id}/invoices`, label: "Invoices" } : { to: `/projects/${inv.project_id}/my-contracts`, label: "My contracts" }} title={<>Invoice #{inv.number} <Badge value={inv.status} /></>}
         sub={<>{label(pa.contract.kind)} <Link to={`/contracts/${pa.contract.id}`}>#{pa.contract.number} {pa.contract.title}</Link> · {pa.contract.counterparty} · period {fmtDate(inv.period_start)} – {fmtDate(inv.period_end)} · retainage {pa.retainage_percent}%</>}
         actions={<>
           <a className="button" href={`/api/invoices/${inv.id}/g703.csv`}>Export G703 CSV</a>
           {canManage(pa.myRole) && inv.status === "approved" && <ActionButton className="primary" onClick={async () => { await api("POST", `/invoices/${inv.id}/paid`); r.reload(); }}>Mark paid</ActionButton>}
-          {editable && <ActionButton className="danger" confirm="Delete this invoice?" onClick={async () => { await api("DELETE", `/invoices/${inv.id}`); location.assign(`/projects/${inv.project_id}/invoices`); }}>Delete</ActionButton>}
+          {editable && <ActionButton className="danger" confirm="Delete this invoice?" onClick={async () => { await api("DELETE", `/invoices/${inv.id}`); location.assign(team ? `/projects/${inv.project_id}/invoices` : `/projects/${inv.project_id}/my-contracts`); }}>Delete</ActionButton>}
         </>} />
       <section className="card summary" aria-label="Application summary">
         <KeyValues items={[
@@ -456,6 +460,7 @@ export function InvoicePage({ id }: { id: string }) {
         ]} />
       </section>
       {pa.overbilled.length > 0 && <p className="error" role="alert">Billing exceeds the scheduled value on: {pa.overbilled.join("; ")}</p>}
+      {inv.status === "approved" && pa.paymentBlockers.length > 0 && <p className="notice" role="status">Payment on hold: {pa.paymentBlockers.join("; ")}.</p>}
       <section className="card">
         <h2>Continuation sheet (G703)</h2>
         <div className="table-wrap">
@@ -478,9 +483,12 @@ export function InvoicePage({ id }: { id: string }) {
         <ErrorText error={error} />
         {editable && <div className="actions"><button className="primary" disabled={busy || !Object.keys(draft).length} onClick={save}>Save amounts</button></div>}
       </section>
-      {editable && inv.status === "draft" && <SubmitForApproval projectId={inv.project_id} path={`/invoices/${inv.id}/submit`} onDone={r.reload} label="Submit for approval" />}
+      {editable && inv.status === "draft" && (team
+        ? <SubmitForApproval projectId={inv.project_id} path={`/invoices/${inv.id}/submit`} onDone={r.reload} label="Submit for approval" />
+        : <section className="card"><ActionButton className="primary" onClick={async () => { await api("POST", `/invoices/${inv.id}/submit`, {}); r.reload(); }}>Submit pay application</ActionButton></section>)}
       <Approvals steps={pa.approvals} myId={pa.myId} onDecided={r.reload} />
-      <Comments entityType="invoice" entityId={inv.id} projectId={inv.project_id} />
+      {pa.contract.kind !== "prime" && <LienWaivers inv={inv} waivers={pa.waivers} isContact={pa.isContact} manager={canManage(pa.myRole)} onChange={r.reload} />}
+      {team && <Comments entityType="invoice" entityId={inv.id} projectId={inv.project_id} />}
     </>
   );
 }

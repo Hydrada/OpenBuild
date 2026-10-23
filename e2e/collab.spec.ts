@@ -72,7 +72,9 @@ test("key screens have no serious accessibility violations", async ({ browser })
   const extra = ["correspondence", "direct-costs", "tm-tickets", "equipment", "action-plans", "warranties", "coordination-issues", "lookahead"].map((t) => `/projects/${w.projectId}/${t}`).concat("/reports");
   await owner.request.post(`/api/projects/${w.projectId}/drawings`, { headers: { "x-openbuild-csrf": "1" }, multipart: { number: "A-1", title: "Plan", revision: "0", file: pdf("A-1") } });
   const drawingId = (await api(owner).get(`/projects/${w.projectId}/drawings`))[0].id;
-  const pages = [...extra, `/action-plans/${plan.id}`, `/tm-tickets/${tm.id}`, `/drawings/${drawingId}`, "/", "/projects", "/team", "/settings", "/my-work", "/account", `/projects/${w.projectId}`, `/projects/${w.projectId}/rfis`, `/projects/${w.projectId}/punch`, `/projects/${w.projectId}/budget`, `/projects/${w.projectId}/schedule`, `/projects/${w.projectId}/meetings`, `/projects/${w.projectId}/timesheets`, `/projects/${w.projectId}/bidding`, `/projects/${w.projectId}/models`];
+  await api(owner).post(`/projects/${w.projectId}/cost-codes`, { code: "01", description: "GC" });
+  const k = await api(owner).post(`/projects/${w.projectId}/contracts`, { kind: "subcontract", title: "Sub", counterparty: "Acme", lines: [{ costCodeId: (await api(owner).get(`/projects/${w.projectId}/cost-codes`))[0].id, description: "Work", amount: "100" }] });
+  const pages = [...extra, `/action-plans/${plan.id}`, `/tm-tickets/${tm.id}`, `/drawings/${drawingId}`, `/contracts/${k.id}`, "/", "/projects", "/team", "/settings", "/my-work", "/account", `/projects/${w.projectId}`, `/projects/${w.projectId}/rfis`, `/projects/${w.projectId}/punch`, `/projects/${w.projectId}/budget`, `/projects/${w.projectId}/schedule`, `/projects/${w.projectId}/meetings`, `/projects/${w.projectId}/timesheets`, `/projects/${w.projectId}/bidding`, `/projects/${w.projectId}/models`];
   const failures: string[] = [];
   for (const path of pages) {
     await owner.goto(path);

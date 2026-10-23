@@ -12,13 +12,14 @@ import { MeetingsTool, TimesheetsTool } from "./tools/meetings";
 import { ModelsTool } from "./tools/models";
 import { ScheduleTool } from "./tools/schedule";
 import { LookaheadTool } from "./tools/lookahead";
+import { MyContractsTool } from "./tools/subcontract";
 import { ActionPlansTool, CoordinationIssuesTool, WarrantiesTool } from "./tools/closeout";
 import { CorrespondenceTool, DirectCostsTool, EquipmentTool, TmTicketsTool } from "./tools/project-tools";
 import { BudgetTool, ChangeEventsTool, ChangeOrdersTool, ContractsTool, InvoicesTool } from "./tools/financials";
 
 export interface ProjectInfo { id: string; org_id: string; name: string; code: string | null; address: string | null; status: string; start_date: string | null; end_date: string | null; myRole: string }
 
-interface Tool { id: string; label: string; group: string; external?: boolean; render: (p: ProjectInfo, reload: () => void) => JSX.Element }
+interface Tool { id: string; label: string; group: string; external?: boolean; subOnly?: boolean; render: (p: ProjectInfo, reload: () => void) => JSX.Element }
 
 const TOOLS: Tool[] = [
   { id: "home", label: "Home", group: "Project", render: (p) => <Home project={p} /> },
@@ -52,6 +53,7 @@ const TOOLS: Tool[] = [
   { id: "change-events", label: "Change events", group: "Financials", render: (p) => <ChangeEventsTool project={p} /> },
   { id: "change-orders", label: "Change orders", group: "Financials", render: (p) => <ChangeOrdersTool project={p} /> },
   { id: "invoices", label: "Invoices", group: "Financials", render: (p) => <InvoicesTool project={p} /> },
+  { id: "my-contracts", label: "My contracts", group: "Financials", external: true, subOnly: true, render: (p) => <MyContractsTool project={p} /> },
   { id: "direct-costs", label: "Direct costs", group: "Financials", render: (p) => <DirectCostsTool project={p} /> },
   { id: "settings", label: "Settings", group: "Project", render: (p, reload) => <Settings project={p} onSaved={reload} /> },
 ];
@@ -62,7 +64,7 @@ export function ProjectPage({ projectId, tool }: { projectId: string; tool: stri
   const p = project.data;
   if (!p) return <Loading />;
   const sub = p.myRole === "subcontractor";
-  const visible = TOOLS.filter((t) => (!sub || t.external) && (t.id !== "settings" || canManage(p.myRole)));
+  const visible = TOOLS.filter((t) => (!sub || t.external) && (!t.subOnly || sub) && (t.id !== "settings" || canManage(p.myRole)));
   const current = visible.find((t) => t.id === tool) ?? visible[0]!;
   const groups = [...new Set(visible.map((t) => t.group))];
   return (

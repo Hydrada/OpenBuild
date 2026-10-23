@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import type { Queryable } from "../db/db.js";
 import { type AppConfig, requireUser } from "../app.js";
 import { decide, listSteps, startRound, type StepRow } from "../lib/approvals.js";
 import { audit } from "../lib/audit.js";
@@ -13,12 +14,13 @@ type P = { Params: { projectId: string } };
 const APPROVAL_TABLE = { document: "documents", submittal: "submittals", change_order: "change_orders", invoice: "invoices" } as const;
 type Id = { Params: { id: string } };
 
-const ATTACHABLE = ["task", "rfi", "submittal", "daily_log", "inspection", "punch_item", "observation", "incident", "change_event", "change_order", "invoice", "correspondence", "tm_ticket", "action_plan_item", "warranty", "coordination_issue"] as const;
+const ATTACHABLE = ["task", "rfi", "submittal", "daily_log", "inspection", "punch_item", "observation", "incident", "change_event", "change_order", "invoice", "correspondence", "tm_ticket", "action_plan_item", "warranty", "coordination_issue", "compliance_document", "lien_waiver"] as const;
 const ATTACH_TABLE: Record<(typeof ATTACHABLE)[number], string> = {
   task: "tasks", rfi: "rfis", submittal: "submittals", daily_log: "daily_logs", inspection: "inspections",
   punch_item: "punch_items", observation: "observations", incident: "incidents", change_event: "change_events",
   change_order: "change_orders", invoice: "invoices", correspondence: "correspondence", tm_ticket: "tm_tickets",
   action_plan_item: "action_plan_items", warranty: "warranties", coordination_issue: "coordination_issues",
+  compliance_document: "compliance_documents", lien_waiver: "lien_waivers",
 };
 
 export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (app) => {
@@ -66,12 +68,20 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
     return reply.send(await storage.get(row.storage_key));
   });
 
+  async function isCommitmentContact(type: string, id: string, userId: string) {
+    const contractId = await commitmentOf(db, type, id);
+    return !!contractId && (await db.query("SELECT 1 FROM contract_contacts WHERE contract_id = $1 AND user_id = $2", [contractId, userId])).length > 0;
+  }
+
   app.post("/attachments", async (req, reply) => {
     const user = requireUser(req);
     const body = z.object({ entityType: z.enum(ATTACHABLE), entityId: z.uuid(), fileId: z.uuid() }).parse(req.body);
     const { row: entity, access } = await loadInProject<{ project_id: string; assignee_id?: string | null }>(db, ATTACH_TABLE[body.entityType], body.entityId, user.id, "read");
-    // Contributors+ attach anywhere; anyone may attach evidence to a record assigned to them.
-    if (!canWriteRecords(access.role) && entity.assignee_id !== user.id) throw new HttpError(403, "You do not have permission to do that");
+    // Contributors+ attach anywhere; anyone may attach evidence to a record assigned to them; a commitment's invoice
+    // contacts attach their own certificates and lien waivers.
+    if (!canWriteRecords(access.role) && entity.assignee_id !== user.id && !(await isCommitmentContact(body.entityType, body.entityId, user.id))) {
+      throw new HttpError(403, "You do not have permission to do that");
+    }
     const { row: file } = await loadInProject<{ project_id: string; uploaded_by: string | null }>(db, "files", body.fileId, user.id, "read", "File");
     if (!canWriteRecords(access.role) && file.uploaded_by !== user.id) throw new HttpError(403, "You can only attach files you uploaded");
     if (file.project_id !== entity.project_id) throw new HttpError(400, "File belongs to a different project");
@@ -390,3 +400,9 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
     return reply.code(201).send(spec);
   });
 };
+
+async function commitmentOf(q: Queryable, type: string, id: string): Promise<string | null> {
+  if (type === "compliance_document") return (await q.query<{ contract_id: string }>("SELECT contract_id FROM compliance_documents WHERE id = $1", [id]))[0]?.contract_id ?? null;
+  if (type === "lien_waiver") return (await q.query<{ contract_id: string }>("SELECT i.contract_id FROM lien_waivers w JOIN invoices i ON i.id = w.invoice_id WHERE w.id = $1", [id]))[0]?.contract_id ?? null;
+  return null;
+}

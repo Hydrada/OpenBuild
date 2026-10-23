@@ -7,7 +7,7 @@ import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { budgetReport, computePayApp, scheduleOfValues, toCsv } from "../lib/finance.js";
 import { dec, fmt, money, nonNegativeMoney, percent, sum } from "../lib/money.js";
-import { isUuid, requireProject } from "../lib/permissions.js";
+import { isSubcontractor, isUuid, projectRoleAllows, requireProject } from "../lib/permissions.js";
 import { assertProjectMember, loadInProject, nextNumber, editable } from "../lib/records.js";
 
 type P = { Params: { projectId: string } };
@@ -210,7 +210,8 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
     const sov = await scheduleOfValues(db, row.id);
     const original = sum(lines.map((l) => (l as { amount: string }).amount));
     const approved = sum(sov.filter((s) => s.change_order_line_id).map((s) => s.scheduled_value));
-    return { ...row, retainage_percent: fmt(dec((row as unknown as { retainage_percent: string }).retainage_percent)), lines, changeOrders, invoices, sov, totals: { original: fmt(original), approved_changes: fmt(approved), revised: fmt(original.plus(approved)) }, myRole: access.role };
+    const contacts = await db.query("SELECT u.id, u.name FROM contract_contacts c JOIN users u ON u.id = c.user_id WHERE c.contract_id = $1 ORDER BY u.name", [req.params.id]);
+    return { ...row, retainage_percent: fmt(dec((row as unknown as { retainage_percent: string }).retainage_percent)), lines, changeOrders, invoices, sov, contacts, totals: { original: fmt(original), approved_changes: fmt(approved), revised: fmt(original.plus(approved)) }, myRole: access.role };
   });
 
   app.patch<Id>("/contracts/:id", async (req) => {
@@ -466,8 +467,14 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
     const user = requireUser(req);
     const { project } = await requireProject(db, user.id, req.params.projectId, "record.write");
     const b = z.object({ contractId: z.uuid(), periodStart: z.iso.date(), periodEnd: z.iso.date() }).parse(req.body);
-    if (b.periodEnd < b.periodStart) throw new HttpError(400, "Period end is before period start");
-    const inv = await db.tx(async (q) => {
+    const inv = await db.tx((q) => createInvoice(q, project, b, user.id));
+    return reply.code(201).send(inv);
+  });
+
+  /** Shared by the project team and a subcontract's invoice contacts. */
+  async function createInvoice(q: Queryable, project: { id: string; org_id: string }, b: { contractId: string; periodStart: string; periodEnd: string }, userId: string) {
+      if (b.periodEnd < b.periodStart) throw new HttpError(400, "Period end is before period start");
+      const user = { id: userId };
       const [k] = await q.query<{ status: string }>("SELECT status FROM contracts WHERE id = $1 AND project_id = $2 FOR UPDATE", [b.contractId, project.id]);
       if (!k) throw new HttpError(400, "Contract not found in this project");
       if (k.status !== "approved") throw new HttpError(409, "Invoices can only be created on approved contracts");
@@ -486,21 +493,47 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
       }
       await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "invoice.create", entityType: "invoice", entityId: row!.id, detail: { number, period: [b.periodStart, b.periodEnd] } });
       return row!;
-    });
+  }
+
+  /** Subcontractor invoicing: an invoice contact on a commitment creates the pay application for that commitment. */
+  app.post<Id>("/contracts/:id/invoices", async (req, reply) => {
+    const user = requireUser(req);
+    const { row, access } = await loadInProject<{ id: string; project_id: string; kind: string }>(db, "contracts", req.params.id, user.id, "read", "Contract");
+    const contact = await isContact(db, row.id, user.id);
+    if (!contact && !projectRoleAllows(access.role, "record.write")) throw new HttpError(404, "Contract not found");
+    if (row.kind === "prime") throw new HttpError(400, "Owner invoices are created by the project team");
+    const b = z.object({ periodStart: z.iso.date(), periodEnd: z.iso.date() }).parse(req.body);
+    const inv = await db.tx((q) => createInvoice(q, access.project, { contractId: row.id, ...b }, user.id));
     return reply.code(201).send(inv);
   });
 
+  /**
+   * Invoice access: the project team as before, plus a subcontractor who is an invoice contact on the invoice's
+   * commitment (read, and edit/submit while it is a draft or rejected). Everyone else gets 404.
+   */
+  async function invoiceAccess(id: string, userId: string, need: "read" | "edit") {
+    const { row, access } = await loadInProject<{ project_id: string; id: string; contract_id: string; status: string; number: number; created_by: string | null }>(db, "invoices", id, userId, "read", "Invoice");
+    if (await isContact(db, row.contract_id, userId)) return { row, access, contact: true };
+    if (!projectRoleAllows(access.role, need === "read" ? "read.full" : "record.write")) {
+      if (isSubcontractor(access)) throw new HttpError(404, "Invoice not found");
+      throw new HttpError(403, "You do not have permission to do that");
+    }
+    return { row, access, contact: false };
+  }
+
   app.get<Id>("/invoices/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string; contract_id: string }>(db, "invoices", req.params.id, user.id, "read.full", "Invoice");
+    const { row, access, contact } = await invoiceAccess(req.params.id, user.id, "read");
     const pa = await computePayApp(db, row.id);
-    const [k] = await db.query("SELECT id, number, kind, title, counterparty FROM contracts WHERE id = $1", [row.contract_id]);
-    return { ...pa, contract: k, approvals: await listSteps(db, "invoice", row.id), myRole: access.role, myId: user.id };
+    const [k] = await db.query("SELECT id, number, kind, title, counterparty, require_insurance, require_lien_waivers FROM contracts WHERE id = $1", [row.contract_id]);
+    const waivers = await db.query("SELECT id, kind, amount::text, through_date, status, received_at FROM lien_waivers WHERE invoice_id = $1 ORDER BY created_at", [row.id]);
+    const gate = await paymentBlockers(db, row.id);
+    return { ...pa, contract: k, approvals: await listSteps(db, "invoice", row.id), waivers, paymentBlockers: gate, isContact: contact, myRole: access.role, myId: user.id };
   });
 
   app.get<Id>("/invoices/:id/g703.csv", async (req, reply) => {
     const user = requireUser(req);
-    const { row } = await loadInProject<{ project_id: string; id: string; number: number }>(db, "invoices", req.params.id, user.id, "read.full", "Invoice");
+    const { row } = await invoiceAccess(req.params.id, user.id, "read");
     const pa = await computePayApp(db, row.id);
     const headers = ["Cost code", "Description", "Source", "Scheduled value", "From previous application", "This period", "Materials presently stored", "Completed and stored to date", "% complete", "Balance to finish", "Retainage"];
     const data = pa.lines.map((l) => [l.cost_code, l.description, l.source, l.scheduled_value, l.previous_work, l.work_this_period, l.materials_stored, l.completed_to_date, l.percent_complete, l.balance_to_finish, l.retainage]);
@@ -513,7 +546,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.put<Id>("/invoices/:id/lines", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string; status: string }>(db, "invoices", req.params.id, user.id, "record.write", "Invoice");
+    const { row, access } = await invoiceAccess(req.params.id, user.id, "edit");
     if (!["draft", "rejected"].includes(row.status)) throw new HttpError(409, "Only draft or rejected invoices can be edited");
     const b = z.object({
       lines: z.array(z.object({ key: z.string().regex(/^(cl|col):[0-9a-f-]{36}$/), workThisPeriod: nonNegativeMoney, materialsStored: nonNegativeMoney.default("0.00") })).max(1000),
@@ -534,9 +567,13 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.post<Id>("/invoices/:id/submit", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string; status: string; number: number }>(db, "invoices", req.params.id, user.id, "record.write", "Invoice");
+    const { row, access, contact } = await invoiceAccess(req.params.id, user.id, "edit");
     if (row.status !== "draft") throw new HttpError(409, "Only draft invoices can be submitted");
-    const b = z.object({ approverIds: z.array(z.uuid()).min(1).max(10) }).parse(req.body);
+    // A subcontractor does not pick approvers: their invoice goes to the commitment's author if they manage the
+    // project, otherwise to the project's first manager.
+    const b = contact && !projectRoleAllows(access.role, "record.write")
+      ? { approverIds: [await defaultInvoiceApprover(db, row.project_id, row.contract_id)] }
+      : z.object({ approverIds: z.array(z.uuid()).min(1).max(10) }).parse(req.body);
     return db.tx(async (q) => {
       const pa = await computePayApp(q, row.id);
       if (pa.overbilled.length) throw new HttpError(400, `Billing exceeds the scheduled value on: ${pa.overbilled.join("; ")}`);
@@ -557,6 +594,8 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string; number: number }>(db, "invoices", req.params.id, user.id, "record.manage", "Invoice");
     if (row.status !== "approved") throw new HttpError(409, "Only approved invoices can be marked paid");
+    const blockers = await paymentBlockers(db, row.id);
+    if (blockers.length) throw new HttpError(409, `Payment is on hold: ${blockers.join("; ")}`);
     return db.tx(async (q) => {
       await q.query("UPDATE invoices SET status = 'paid', paid_at = now() WHERE id = $1", [row.id]);
       await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: "invoice.paid", entityType: "invoice", entityId: row.id, detail: { number: row.number } });
@@ -566,7 +605,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.delete<Id>("/invoices/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string; status: string; number: number }>(db, "invoices", req.params.id, user.id, "record.write", "Invoice");
+    const { row, access } = await invoiceAccess(req.params.id, user.id, "edit");
     if (!["draft", "rejected"].includes(row.status)) throw new HttpError(409, "Only draft or rejected invoices can be deleted");
     return db.tx(async (q) => {
       await q.query("DELETE FROM approval_steps WHERE entity_type = 'invoice' AND entity_id = $1", [row.id]);
@@ -605,4 +644,44 @@ export function parseCostCodeCsv(csv: string): { code: string; description: stri
 
 function safeName(name: string) {
   return name.replace(/[^\w.-]+/g, "_").slice(0, 60) || "project";
+}
+
+/** True when `userId` is an invoice contact on the commitment. */
+export async function isContact(q: Queryable, contractId: string, userId: string): Promise<boolean> {
+  return (await q.query("SELECT 1 FROM contract_contacts WHERE contract_id = $1 AND user_id = $2", [contractId, userId])).length > 0;
+}
+
+async function defaultInvoiceApprover(q: Queryable, projectId: string, contractId: string): Promise<string> {
+  const [author] = await q.query<{ created_by: string | null }>("SELECT created_by FROM contracts WHERE id = $1", [contractId]);
+  if (author?.created_by && (await canManage(q, projectId, author.created_by))) return author.created_by;
+  const [m] = await q.query<{ user_id: string }>(
+    `SELECT pm.user_id FROM project_memberships pm JOIN users u ON u.id = pm.user_id WHERE pm.project_id = $1 AND pm.role = 'manager' ORDER BY u.name LIMIT 1`, [projectId]);
+  if (m) return m.user_id;
+  const [owner] = await q.query<{ user_id: string }>(
+    `SELECT om.user_id FROM projects p JOIN org_memberships om ON om.org_id = p.org_id AND om.role = 'owner' WHERE p.id = $1 LIMIT 1`, [projectId]);
+  return owner!.user_id;
+}
+
+/**
+ * Why an approved invoice cannot be paid yet: required insurance missing, not accepted or expired (as of today), or
+ * no received/accepted lien waiver for this invoice when the commitment requires one.
+ */
+export async function paymentBlockers(q: Queryable, invoiceId: string): Promise<string[]> {
+  const [k] = await q.query<{ id: string; require_insurance: boolean; require_lien_waivers: boolean }>(
+    "SELECT k.id, k.require_insurance, k.require_lien_waivers FROM invoices i JOIN contracts k ON k.id = i.contract_id WHERE i.id = $1", [invoiceId]);
+  if (!k) return [];
+  const out: string[] = [];
+  if (k.require_insurance) {
+    for (const [kind, name] of [["general_liability", "general liability"], ["workers_comp", "workers' compensation"]] as const) {
+      const [doc] = await q.query<{ expires_on: string | null }>(
+        "SELECT expires_on FROM compliance_documents WHERE contract_id = $1 AND kind = $2 AND status = 'accepted' ORDER BY expires_on DESC NULLS LAST LIMIT 1", [k.id, kind]);
+      if (!doc) out.push(`no accepted ${name} certificate`);
+      else if (doc.expires_on && doc.expires_on < new Date().toISOString().slice(0, 10)) out.push(`${name} insurance expired ${doc.expires_on}`);
+    }
+  }
+  if (k.require_lien_waivers) {
+    const [w] = await q.query("SELECT 1 FROM lien_waivers WHERE invoice_id = $1 AND status IN ('received','accepted')", [invoiceId]);
+    if (!w) out.push("lien waiver not received");
+  }
+  return out;
 }

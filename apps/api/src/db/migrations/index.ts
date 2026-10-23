@@ -1182,4 +1182,49 @@ CREATE TABLE drawing_annotations (
 );
 `,
   },
+  {
+    id: "0026_subcontract_compliance",
+    sql: /* sql */ `
+-- Subcontractor invoicing contacts, insurance/compliance documents and lien waivers on commitments.
+CREATE TABLE contract_contacts (
+  contract_id uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (contract_id, user_id)
+);
+ALTER TABLE contracts ADD COLUMN require_insurance boolean NOT NULL DEFAULT false;
+ALTER TABLE contracts ADD COLUMN require_lien_waivers boolean NOT NULL DEFAULT false;
+
+CREATE TABLE compliance_documents (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  contract_id uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  kind        text NOT NULL CHECK (kind IN ('general_liability','workers_comp','auto','umbrella','w9','license','other')),
+  carrier     text,
+  policy_number text,
+  limit_amount numeric(14,2),
+  effective_on date,
+  expires_on  date,
+  status      text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','rejected')),
+  note        text,
+  created_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  CHECK (expires_on IS NULL OR effective_on IS NULL OR expires_on >= effective_on)
+);
+CREATE INDEX compliance_documents_contract ON compliance_documents (contract_id);
+
+CREATE TABLE lien_waivers (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  invoice_id  uuid NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  kind        text NOT NULL CHECK (kind IN ('conditional_progress','unconditional_progress','conditional_final','unconditional_final')),
+  amount      numeric(14,2) NOT NULL CHECK (amount >= 0),
+  through_date date NOT NULL,
+  status      text NOT NULL DEFAULT 'requested' CHECK (status IN ('requested','received','accepted','rejected')),
+  received_at timestamptz,
+  created_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (invoice_id, kind)
+);
+`,
+  },
 ];
