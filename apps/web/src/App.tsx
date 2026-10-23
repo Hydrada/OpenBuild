@@ -21,6 +21,7 @@ import { RfiPage, SubmittalPage } from "./pages/tools/rfis";
 import { ActionPlanPage, CoordinationIssuePage, WarrantyPage } from "./pages/tools/closeout";
 import { ReportsPage, SavedReportPage } from "./pages/Reports";
 import { FormPage } from "./pages/tools/forms";
+import { EstimatePage } from "./pages/tools/estimates";
 import { CorrespondencePage, EquipmentPage, TmTicketPage } from "./pages/tools/project-tools";
 import { match, navigate, usePath } from "./router";
 
@@ -49,6 +50,7 @@ const DETAIL: [string, (id: string) => JSX.Element][] = [
   ["equipment", (id) => <EquipmentPage id={id} />],
   ["reports", (id) => <SavedReportPage id={id} />],
   ["forms", (id) => <FormPage id={id} />],
+  ["estimates", (id) => <EstimatePage id={id} />],
   ["action-plans", (id) => <ActionPlanPage id={id} />],
   ["warranties", (id) => <WarrantyPage id={id} />],
   ["coordination-issues", (id) => <CoordinationIssuePage id={id} />],

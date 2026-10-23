@@ -11,6 +11,7 @@
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
 - Correspondence (transmittals, notices, instructions, letters, memos) with acknowledgements.
+- Estimating: cost catalog, priced estimates with markups, and one-click transfer to the budget.
 - Forms: build company form templates, fill them on projects, sign, submit and export to PDF.
 - Permission templates: per-tool access levels (none, read, standard, admin) assignable to each project member.
 - Photo albums, captions, tags and EXIF capture dates; daily log sections for deliveries, calls, safety violations, quantities and waste, with the day's equipment and time.

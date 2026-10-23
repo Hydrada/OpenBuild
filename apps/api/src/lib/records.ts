@@ -9,7 +9,7 @@ const PROJECT_TABLES = new Set([
   "daily_logs", "inspections", "punch_items", "observations", "incidents",
   "cost_codes", "contracts", "change_events", "change_orders", "invoices", "budget_lines", "schedule_items", "schedule_resources", "meetings", "timesheet_entries", "bid_packages", "bim_models",
   "correspondence", "direct_costs", "tm_tickets", "equipment",
-  "action_plans", "action_plan_items", "warranties", "coordination_issues", "clash_runs", "lookahead_tasks", "crews", "compliance_documents", "lien_waivers", "forms",
+  "action_plans", "action_plan_items", "warranties", "coordination_issues", "clash_runs", "lookahead_tasks", "crews", "compliance_documents", "lien_waivers", "forms", "estimates",
 ]);
 
 /** Loads a project-scoped row and checks the caller may perform `action` on its project. 404s hide other orgs' ids. */

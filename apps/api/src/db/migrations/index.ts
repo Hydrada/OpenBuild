@@ -1311,4 +1311,46 @@ CREATE TABLE forms (
 );
 `,
   },
+  {
+    id: "0030_estimating",
+    sql: /* sql */ `
+-- Estimating: company cost catalog and project estimates.
+CREATE TABLE cost_catalog_items (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  code        text,
+  name        text NOT NULL,
+  category    text NOT NULL DEFAULT 'material' CHECK (category IN ('labor','material','equipment','subcontract','other')),
+  unit        text NOT NULL,
+  unit_cost   numeric(14,2) NOT NULL CHECK (unit_cost >= 0),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (org_id, name)
+);
+CREATE TABLE estimates (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id     uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name           text NOT NULL,
+  status         text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','final')),
+  overhead_pct   numeric(6,3) NOT NULL DEFAULT 0 CHECK (overhead_pct BETWEEN 0 AND 100),
+  contingency_pct numeric(6,3) NOT NULL DEFAULT 0 CHECK (contingency_pct BETWEEN 0 AND 100),
+  profit_pct     numeric(6,3) NOT NULL DEFAULT 0 CHECK (profit_pct BETWEEN 0 AND 100),
+  bond_pct       numeric(6,3) NOT NULL DEFAULT 0 CHECK (bond_pct BETWEEN 0 AND 100),
+  sent_to_budget_at timestamptz,
+  created_by     uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, name)
+);
+CREATE TABLE estimate_lines (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  estimate_id  uuid NOT NULL REFERENCES estimates(id) ON DELETE CASCADE,
+  seq          int NOT NULL,
+  cost_code_id uuid REFERENCES cost_codes(id) ON DELETE SET NULL,
+  description  text NOT NULL,
+  category     text NOT NULL DEFAULT 'material' CHECK (category IN ('labor','material','equipment','subcontract','other')),
+  quantity     numeric(14,3) NOT NULL CHECK (quantity >= 0),
+  unit         text,
+  unit_cost    numeric(14,2) NOT NULL CHECK (unit_cost >= 0)
+);
+`,
+  },
 ];

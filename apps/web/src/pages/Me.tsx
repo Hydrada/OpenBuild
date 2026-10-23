@@ -1,5 +1,6 @@
 import { PermissionTemplatesSection } from "./PermissionTemplates";
 import { FormTemplatesSection } from "./tools/forms";
+import { CostCatalogSection } from "./tools/estimates";
 import { useState } from "react";
 import { api, fmtDate, fmtDateTime, label } from "../api";
 import { ActionButton, Badge, DataTable, Empty, ErrorText, Form, Link, Loading, PageHead } from "../components/ui";
@@ -222,6 +223,7 @@ export function OrgSettingsPage({ orgId }: { orgId: string }) {
       </section>
       <PermissionTemplatesSection orgId={orgId} />
       <FormTemplatesSection orgId={orgId} />
+      <CostCatalogSection orgId={orgId} />
     </>
   );
 }
