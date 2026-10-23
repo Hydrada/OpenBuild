@@ -254,7 +254,7 @@ export function TmTicketPage({ id }: { id: string }) {
   const status = (s: string, extra: object = {}) => run(async () => { await api("POST", `/tm-tickets/${id}/status`, { status: s, ...extra }); r.reload(); });
   return (
     <>
-      <PageHead back={{ to: `/projects/${t.project_id}/tm-tickets`, label: "T&M tickets" }} title={<>T&amp;M ticket #{t.number} <Badge value={t.status} /></>}
+      <PageHead pdf={`/tm-tickets/${t.id}/pdf`} back={{ to: `/projects/${t.project_id}/tm-tickets`, label: "T&M tickets" }} title={<>T&amp;M ticket #{t.number} <Badge value={t.status} /></>}
         sub={`${fmtDate(t.work_date)}${t.company ? ` · ${t.company}` : ""}`}
         actions={<>
           {manager && t.status === "submitted" && <>

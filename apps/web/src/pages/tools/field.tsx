@@ -75,7 +75,7 @@ export function DailyLogPage({ id }: { id: string }) {
   const totalWorkers = manpower.reduce((n: number, m: any) => n + (Number(m.workers) || 0), 0);
   return (
     <>
-      <PageHead back={{ to: `/projects/${log.project_id}/daily-log`, label: "Daily log" }} title={<>Daily log — {fmtDate(log.log_date)} <Badge value={log.status} /></>}
+      <PageHead pdf={`/daily-logs/${log.id}/pdf`} back={{ to: `/projects/${log.project_id}/daily-log`, label: "Daily log" }} title={<>Daily log — {fmtDate(log.log_date)} <Badge value={log.status} /></>}
         sub={log.status === "signed" ? `Signed by ${log.signed_by_name} ${fmtDateTime(log.signed_at)}` : `Created by ${log.created_by_name ?? "—"}`}
         actions={canManage(log.myRole) && log.status !== "signed" && <ActionButton className="primary" confirm="Signing locks this log. Continue?" onClick={async () => { await api("POST", `/daily-logs/${log.id}/sign`); r.reload(); }}>Sign log</ActionButton>} />
       <Queued show={logQueued} />
@@ -247,6 +247,7 @@ export function PunchTool({ project }: { project: ProjectInfo }) {
       <div className="tool-bar">
         <h2 className="tool-title">Punch list</h2>
         <div className="actions">
+          <a className="button" href={`/api/projects/${project.id}/punch-list.pdf`} download>Download PDF</a>
           {writable && (
             <Creator label="Import CSV">
               {(close) => (

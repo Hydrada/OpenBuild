@@ -41,3 +41,16 @@ test("lookahead: add a task under an activity, block it with a reason", async ({
   await owner.getByRole("button", { name: "Save" }).click();
   await expect(owner.getByText("Blocked: Deck delivery late")).toBeVisible();
 });
+
+test("records download as PDF", async ({ browser }) => {
+  const w = await world(browser);
+  const { owner } = w;
+  const r = await api(owner).post(`/projects/${w.projectId}/rfis`, { subject: "Embed plate size", question: "Size?" });
+  await owner.goto(`/rfis/${r.id}`);
+  const download = owner.waitForEvent("download");
+  await owner.getByRole("link", { name: "Download PDF" }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe(`RFI-${r.number}.pdf`);
+  const fs = await import("node:fs");
+  expect(fs.readFileSync((await file.path())!).subarray(0, 5).toString()).toBe("%PDF-");
+});

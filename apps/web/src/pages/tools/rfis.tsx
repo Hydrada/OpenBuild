@@ -75,7 +75,7 @@ export function RfiPage({ id }: { id: string }) {
   const canClose = manager || (rfi.created_by === rfi.myId && canWrite(rfi.myRole));
   return (
     <>
-      <PageHead back={{ to: `/projects/${rfi.project_id}/rfis`, label: "RFIs" }} title={<>RFI #{rfi.number}: {rfi.subject} <Badge value={rfi.status} /></>}
+      <PageHead pdf={`/rfis/${rfi.id}/pdf`} back={{ to: `/projects/${rfi.project_id}/rfis`, label: "RFIs" }} title={<>RFI #{rfi.number}: {rfi.subject} <Badge value={rfi.status} /></>}
         actions={canClose && (rfi.status === "closed"
           ? <ActionButton onClick={async () => { await api("POST", `/rfis/${rfi.id}/status`, { status: "open" }); r.reload(); }}>Reopen</ActionButton>
           : <ActionButton className="primary" onClick={async () => { await api("POST", `/rfis/${rfi.id}/status`, { status: "closed" }); r.reload(); }}>Close RFI</ActionButton>)} />
@@ -180,7 +180,7 @@ export function SubmittalPage({ id }: { id: string }) {
   const writable = canWrite(s.myRole);
   return (
     <>
-      <PageHead back={{ to: `/projects/${s.project_id}/submittals`, label: "Submittals" }}
+      <PageHead pdf={`/submittals/${s.id}/pdf`} back={{ to: `/projects/${s.project_id}/submittals`, label: "Submittals" }}
         title={<>Submittal #{s.number}{s.revision ? ` rev ${s.revision}` : ""}: {s.title} <Badge value={s.status} /></>}
         actions={writable && (
           s.status === "draft" ? <ActionButton className="primary" onClick={async () => { await api("POST", `/submittals/${s.id}/submit`); r.reload(); }}>Submit for review</ActionButton>

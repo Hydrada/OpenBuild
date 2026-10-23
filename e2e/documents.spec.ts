@@ -60,7 +60,7 @@ test("RFIs: create against a sheet, answer officially as the assignee, close", a
   await a.getByLabel("Response", { exact: true }).fill("W21x44 governs. Schedule is correct.");
   await a.getByLabel("This is the official answer").check();
   await a.getByRole("button", { name: "Post response" }).click();
-  await expect(a.getByText("Official answer")).toBeVisible();
+  await expect(a.getByText("Official answer", { exact: true })).toBeVisible();
   await expect(a.getByRole("button", { name: "Close RFI" })).toHaveCount(0); // viewers cannot close
 
   await owner.reload();

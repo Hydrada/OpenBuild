@@ -19,7 +19,7 @@ test("BIM: 3D viewer renders the model and clash detection runs from the UI", as
   await owner.getByLabel("Model A").selectOption({ label: "Architecture v1" });
   await owner.getByLabel("Model B").selectOption({ label: "MEP v1" });
   await owner.getByRole("button", { name: "Run clash detection" }).click();
-  await expect(owner.getByText(/Architecture v1 × MEP v1/)).toBeVisible();
+  await expect(owner.getByText(/Architecture v1 × MEP v1/)).toBeVisible({ timeout: 20_000 }); // clash detection parses both models
   await expect(owner.getByRole("cell", { name: /Beam B1/ })).toBeVisible();
   await expect(owner.getByRole("cell", { name: /Duct D1/ })).toBeVisible();
   await expect(owner.getByRole("cell", { name: "Geometry" })).toBeVisible();

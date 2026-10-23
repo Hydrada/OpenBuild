@@ -63,7 +63,7 @@ test("coordination: raise an issue from a clash, assignee sends it for review, a
   await owner.getByLabel("Model A").selectOption({ label: "Structure v1" });
   await owner.getByLabel("Model B").selectOption({ label: "MEP v1" });
   await owner.getByRole("button", { name: "Run clash detection" }).click();
-  await owner.getByRole("row", { name: /Beam B1/ }).getByRole("button", { name: "Raise issue" }).click();
+  await owner.getByRole("row", { name: /Beam B1/ }).getByRole("button", { name: "Raise issue" }).click({ timeout: 20_000 }); // waits for the clash run
   await expect(owner.getByText("1 issue(s) raised")).toBeVisible();
 
   await openProject(owner, w, "Coordination issues");

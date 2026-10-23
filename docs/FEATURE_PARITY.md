@@ -45,6 +45,7 @@ Sources:
 | Preconstruction | Bidding | **Done** | Bid packages, private bidder links (no account), revisions until due, leveling vs low bid, award → draft subcontract |
 | Preconstruction | Planroom | **Done** | Drawings/specs shared per bid package, downloadable only through that package's bidder links |
 | Preconstruction | Bidder directory & prequalification | **Done** | Company directory with trade, bonding, insurance expiry, EMR; approval requires current insurance; only prequalified companies invited from the directory |
+| Core | PDF exports | **Done** | RFIs, submittals, daily logs, meeting minutes, change orders (with signature lines), T&M tickets, pay applications (G702 summary + G703 continuation) and the punch list; rendered from the same permission-checked data as the screens |
 | Core | Reports | **Done** | Custom report builder over 10 datasets (RFIs, submittals, punch, observations, incidents, change orders, direct costs, timesheets, coordination issues, daily-log manpower): pick columns, statuses, date range, text, assignee; group and total; one project or every project you can read; save privately or share; CSV export |
 | Collab | Comments, mentions, notifications | **Done** | In-app + optional email |
 | Collab | Subcontractor portal | **Done** | Restricted role + "My work" |

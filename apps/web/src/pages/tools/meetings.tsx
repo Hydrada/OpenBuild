@@ -65,7 +65,7 @@ export function MeetingPage({ id }: { id: string }) {
   const editable = canWrite(m.myRole) && m.status !== "minutes_published";
   return (
     <>
-      <PageHead back={{ to: `/projects/${m.project_id}/meetings`, label: "Meetings" }} title={<>{m.title} <Badge value={m.status} /></>}
+      <PageHead pdf={`/meetings/${m.id}/pdf`} back={{ to: `/projects/${m.project_id}/meetings`, label: "Meetings" }} title={<>{m.title} <Badge value={m.status} /></>}
         sub={`${fmtDateTime(m.starts_at)}${m.location ? ` · ${m.location}` : ""} · attendees: ${m.attendees.map((a: any) => a.name).join(", ") || "none"}`}
         actions={editable && <ActionButton className="primary" confirm="Publish the minutes? Attendees and action owners are notified and the minutes lock." onClick={async () => { await api("POST", `/meetings/${m.id}/publish`); r.reload(); }}>Publish minutes</ActionButton>} />
       <section className="card" aria-label="Minutes">

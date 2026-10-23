@@ -369,7 +369,7 @@ export function ChangeOrderPage({ id }: { id: string }) {
   if (!co) return <Loading />;
   return (
     <>
-      <PageHead back={{ to: `/projects/${co.project_id}/change-orders`, label: "Change orders" }} title={<>Change order #{co.number}: {co.title} <Badge value={co.status} /></>}
+      <PageHead pdf={`/change-orders/${co.id}/pdf`} back={{ to: `/projects/${co.project_id}/change-orders`, label: "Change orders" }} title={<>Change order #{co.number}: {co.title} <Badge value={co.status} /></>}
         sub={<>On <Link to={`/contracts/${co.contract.id}`}>{label(co.contract.kind)} #{co.contract.number} {co.contract.title}</Link> with {co.contract.counterparty}</>}
         actions={canManage(co.myRole) && ["draft", "pending", "rejected"].includes(co.status) && <ActionButton className="danger" confirm="Void this change order?" onClick={async () => { await api("POST", `/change-orders/${co.id}/void`); r.reload(); }}>Void</ActionButton>} />
       <section className="card">
@@ -439,7 +439,7 @@ export function InvoicePage({ id }: { id: string }) {
   }
   return (
     <>
-      <PageHead back={{ to: `/projects/${inv.project_id}/invoices`, label: "Invoices" }} title={<>Invoice #{inv.number} <Badge value={inv.status} /></>}
+      <PageHead pdf={`/invoices/${inv.id}/pdf`} back={{ to: `/projects/${inv.project_id}/invoices`, label: "Invoices" }} title={<>Invoice #{inv.number} <Badge value={inv.status} /></>}
         sub={<>{label(pa.contract.kind)} <Link to={`/contracts/${pa.contract.id}`}>#{pa.contract.number} {pa.contract.title}</Link> · {pa.contract.counterparty} · period {fmtDate(inv.period_start)} – {fmtDate(inv.period_end)} · retainage {pa.retainage_percent}%</>}
         actions={<>
           <a className="button" href={`/api/invoices/${inv.id}/g703.csv`}>Export G703 CSV</a>

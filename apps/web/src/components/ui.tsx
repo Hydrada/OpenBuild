@@ -51,7 +51,7 @@ export function Loading() {
   return <p className="muted" aria-busy="true">Loading…</p>;
 }
 
-export function PageHead({ title, sub, actions, back }: { title: ReactNode; sub?: ReactNode; actions?: ReactNode; back?: { to: string; label: string } }) {
+export function PageHead({ title, sub, actions, back, pdf }: { title: ReactNode; sub?: ReactNode; actions?: ReactNode; back?: { to: string; label: string }; pdf?: string }) {
   return (
     <div className="page-head">
       <div>
@@ -59,7 +59,7 @@ export function PageHead({ title, sub, actions, back }: { title: ReactNode; sub?
         <h1>{title}</h1>
         {sub && <p className="muted">{sub}</p>}
       </div>
-      {actions && <div className="actions">{actions}</div>}
+      {(actions || pdf) && <div className="actions">{pdf && <a className="button" href={`/api${pdf}`} download>Download PDF</a>}{actions}</div>}
     </div>
   );
 }
