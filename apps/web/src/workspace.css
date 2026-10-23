@@ -123,6 +123,8 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 
 .recovery { columns: 2; list-style: none; padding: 0; margin: .5rem 0 0; }
 .auth-card.wide { width: min(680px, 100%); }
+.model-viewer { margin: .5rem 0 1rem; }
+.model-canvas { width: 100%; height: 60vh; min-height: 320px; border-radius: 8px; overflow: hidden; background: #f2f4f7; }
 .secret { font-size: 1.1rem; letter-spacing: .08em; background: #f2f4f7; padding: .3rem .5rem; border-radius: 4px; }
 .attendees { border: 1px solid var(--line); border-radius: 6px; display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; }
 .attendees legend { font-size: .85rem; color: var(--muted); }

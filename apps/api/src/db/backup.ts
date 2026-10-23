@@ -12,7 +12,7 @@ export const TABLE_ORDER = [
   "observations", "incidents",
   "cost_codes", "budget_lines", "budget_modifications", "contracts", "contract_lines",
   "change_events", "change_event_lines", "change_orders", "change_order_lines", "invoices", "invoice_lines",
-  "schedule_resources", "schedule_items", "schedule_links", "meetings", "meeting_items", "timesheet_entries", "bidder_companies", "bid_packages", "bidders", "bid_package_files", "bim_models", "bim_model_versions", "custom_field_defs", "custom_field_values", "audit_log",
+  "schedule_resources", "schedule_items", "schedule_links", "meetings", "meeting_items", "timesheet_entries", "bidder_companies", "bid_packages", "bidders", "bid_package_files", "bim_models", "bim_model_versions", "clash_runs", "custom_field_defs", "custom_field_values", "audit_log",
 ] as const;
 
 export interface Backup {

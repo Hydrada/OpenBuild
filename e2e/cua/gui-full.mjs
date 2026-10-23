@@ -31,8 +31,8 @@ const fixtures = join(outDir, "fixtures");
 mkdirSync(fixtures, { recursive: true });
 const pdfPath = join(fixtures, "A-101.pdf");
 writeFileSync(pdfPath, "%PDF-1.4\n% OpenBuild CUA fixture\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n");
-const ifcPath = join(fixtures, "tower.ifc");
-writeFileSync(ifcPath, ["ISO-10303-21;", "HEADER;", "FILE_SCHEMA(('IFC4'));", "ENDSEC;", "DATA;", ...Array.from({ length: 12 }, (_, i) => `#${i + 10}=IFCWALL('w${i}',$,'Wall',$,$,$,$,$,$);`), "ENDSEC;", "END-ISO-10303-21;"].join(String.fromCharCode(10)));
+// Real geometry: 12 extruded walls (generated once by apps/api/test/ifc-fixture.ts, committed as a fixture).
+const ifcPath = resolve("e2e/cua/fixtures/tower-12-walls.ifc");
 const jpgPath = join(fixtures, "embeds.jpg");
 writeFileSync(jpgPath, Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 0xff, 0xd9]));
 
@@ -314,6 +314,11 @@ try {
     await click("button", "Upload", "12 walls");
     await look("models");
     check("upload BIM model and read its elements", has("12 walls") && has("IFC4"));
+    await click("link", "Architecture", "View in 3D");
+    await click("button", "View in 3D", "Hide 3D view");
+    await until(() => /3D model with \d+ elements/.test(snap.outline), 20);
+    await look("model-3d");
+    check("open the model in the 3D viewer", /3D model with 12 elements/.test(snap.outline));
 
     // ---- Bidding: package (cost code via API: dropdown), invite, bidder submits, award (GUI)
     const pkg = await apiCall("POST", `/api/projects/${projectId}/bid-packages`, { title: "Painting", costCodeId: hw, dueAt: new Date(Date.now() + 7 * 86_400_000).toISOString() });

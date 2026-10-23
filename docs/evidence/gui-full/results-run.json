@@ -7,7 +7,7 @@
   {
     "name": "create project",
     "ok": true,
-    "detail": "2524f569-ae13-4c05-9b6e-743d079d9bc6"
+    "detail": "8017c417-ba82-4d03-bdbd-850bb736d149"
   },
   {
     "name": "invite user",
@@ -97,10 +97,15 @@
   {
     "name": "export budget CSV",
     "ok": true,
-    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\b2eb6672-bb1b-4623-b4af-1de6f56e469f"
+    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\d1e9761b-9864-434e-acee-4ec157c2d412"
   },
   {
     "name": "upload BIM model and read its elements",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "open the model in the 3D viewer",
     "ok": true,
     "detail": ""
   },

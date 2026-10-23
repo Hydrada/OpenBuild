@@ -21,7 +21,7 @@ Sources:
 | Docs | Submittals | **Done** | Types, spec link, ordered reviewers, approve / as noted / revise & resubmit / reject, revisions |
 | Docs | Markup / PDF editing | **Via adapters** | Scoped links for OpenDraft and the Acrobat alternative; markups stored per revision |
 | Core | Meetings | **Done** | Agenda, attendees, minutes, action items with owners and due dates, publish + notify |
-| Docs | Models (BIM) | **Done (register)** | IFC versions per model with schema and element counts/changes; no in-browser 3D viewer or clash detection |
+| Docs | Models (BIM) | **Done** | IFC versions with element counts/changes, in-browser 3D viewer (web-ifc + three.js), bounding-box clash detection between models with stored runs and red highlighting in 3D; not exact-geometry (mesh) clash detection |
 | Field | Daily log | **Done** | Weather, temps, work, delays, visitors, manpower (decimal hours), photos, sign-off lock |
 | Field | Inspections | **Done** | Templates, pass/fail/N-A, failed item → punch item, completion rule |
 | Field | Punch list | **Done** | Assign, ready-for-review → verify with photo, CSV import |

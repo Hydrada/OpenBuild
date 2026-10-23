@@ -135,7 +135,7 @@ export async function buildApp(config: AppConfig) {
     reply.header("Referrer-Policy", "same-origin");
     reply.header(
       "Content-Security-Policy",
-      "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'",
+      "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'",
     );
     return payload;
   });

@@ -4,6 +4,7 @@ import { type AppConfig, requireUser } from "../app.js";
 import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { isIfc, summarizeIfc } from "../lib/ifc.js";
+import { elementBoxes, findClashes } from "../lib/ifc-geometry.js";
 import { requireProject } from "../lib/permissions.js";
 import { loadInProject } from "../lib/records.js";
 import { readUpload, storeFile } from "../lib/uploads.js";
@@ -47,6 +48,64 @@ export const bimRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
       return { modelId: m!.id, version: n!.n, ...summary };
     });
     return reply.code(201).send(out);
+  });
+
+  async function readAll(key: string): Promise<Uint8Array> {
+    const chunks: Buffer[] = [];
+    for await (const c of await storage.get(key)) chunks.push(Buffer.from(c as Buffer));
+    return new Uint8Array(Buffer.concat(chunks));
+  }
+
+  /**
+   * Coarse clash detection between the latest versions of two models: element bounding boxes (from real
+   * geometry) that overlap by more than the tolerance on every axis. Runs are stored for review.
+   */
+  app.post<P>("/projects/:projectId/clashes", async (req, reply) => {
+    const user = requireUser(req);
+    const { project } = await requireProject(db, user.id, req.params.projectId, "record.write");
+    const b = z.object({ modelAId: z.uuid(), modelBId: z.uuid(), toleranceMm: z.number().min(0).max(1000).default(10) }).parse(req.body);
+    if (b.modelAId === b.modelBId) throw new HttpError(400, "Choose two different models");
+    const latest = async (modelId: string) => {
+      const [v] = await db.query<{ id: string; storage_key: string; name: string; version: number }>(
+        `SELECT v.id, f.storage_key, m.name, v.version FROM bim_models m JOIN bim_model_versions v ON v.model_id = m.id JOIN files f ON f.id = v.file_id
+          WHERE m.id = $1 AND m.project_id = $2 ORDER BY v.version DESC LIMIT 1`,
+        [modelId, project.id],
+      );
+      if (!v) throw new HttpError(404, "Model not found");
+      return v;
+    };
+    const [va, vb] = [await latest(b.modelAId), await latest(b.modelBId)];
+    let clashes;
+    try {
+      clashes = findClashes(await elementBoxes(await readAll(va.storage_key)), await elementBoxes(await readAll(vb.storage_key)), b.toleranceMm / 1000);
+    } catch (e) {
+      throw new HttpError(422, `The model geometry could not be read: ${(e as Error).message}`);
+    }
+    const results = clashes.map((c) => ({
+      a: { id: c.a.globalId, type: c.a.type, name: c.a.name }, b: { id: c.b.globalId, type: c.b.type, name: c.b.name },
+      overlapM: c.overlap, volumeM3: c.volume,
+    }));
+    const [run] = await db.tx(async (q) => {
+      const r = await q.query<{ id: string }>(
+        `INSERT INTO clash_runs (project_id, version_a, version_b, tolerance_m, clash_count, results, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at`,
+        [project.id, va.id, vb.id, b.toleranceMm / 1000, results.length, JSON.stringify(results), user.id],
+      );
+      await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "model.clash_run", entityType: "project", entityId: project.id, detail: { a: `${va.name} v${va.version}`, b: `${vb.name} v${vb.version}`, clashes: results.length } });
+      return r;
+    });
+    return reply.code(201).send({ id: run!.id, a: `${va.name} v${va.version}`, b: `${vb.name} v${vb.version}`, clashCount: results.length, clashes: results });
+  });
+
+  app.get<P>("/projects/:projectId/clashes", async (req) => {
+    const user = requireUser(req);
+    await requireProject(db, user.id, req.params.projectId, "read");
+    return db.query(
+      `SELECT r.id, r.created_at, r.clash_count, r.tolerance_m::text, r.results, ma.name || ' v' || va.version AS model_a, mb.name || ' v' || vb.version AS model_b, u.name AS run_by
+         FROM clash_runs r JOIN bim_model_versions va ON va.id = r.version_a JOIN bim_models ma ON ma.id = va.model_id
+         JOIN bim_model_versions vb ON vb.id = r.version_b JOIN bim_models mb ON mb.id = vb.model_id LEFT JOIN users u ON u.id = r.created_by
+        WHERE r.project_id = $1 ORDER BY r.created_at DESC LIMIT 20`,
+      [req.params.projectId],
+    );
   });
 
   /** Version history with element-count changes against the previous version. */

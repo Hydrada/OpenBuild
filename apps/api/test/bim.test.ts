@@ -58,3 +58,29 @@ describe("BIM model register", () => {
     expect((await viewer.upload(P, { name: "x" }, { name: "x.ifc", type: "application/octet-stream", data: ifc(1, 1) })).status).toBe(403);
   });
 });
+
+describe("clash detection", () => {
+  it("finds real geometric clashes between two models and records the run", async () => {
+    const { ifcWithBoxes } = await import("./ifc-fixture.js");
+    const P = `/api/projects/${projectId}/models`;
+    const arch = ifcWithBoxes([
+      { name: "Beam B1", x: 0, y: 0, z: 3, dx: 6, dy: 0.3, dz: 0.5 },
+      { type: "IFCWALL", name: "Wall W1", x: 10, y: 0, z: 0, dx: 0.2, dy: 5, dz: 3 },
+    ]);
+    const mep = ifcWithBoxes([
+      { type: "IFCDUCTSEGMENT", name: "Duct D1", x: 2, y: -1, z: 3.1, dx: 0.4, dy: 3, dz: 0.3 }, // through the beam
+      { type: "IFCPIPESEGMENT", name: "Pipe P1", x: 20, y: 0, z: 0, dx: 0.1, dy: 0.1, dz: 2 },   // clear
+      { type: "IFCPIPESEGMENT", name: "Pipe P2", x: 10.205, y: 1, z: 1, dx: 0.1, dy: 0.1, dz: 0.5 }, // 5 mm clear of the wall
+    ]);
+    const a = (await owner.upload(P, { name: "Architecture" }, { name: "arch.ifc", type: "application/octet-stream", data: arch })).body;
+    const b = (await owner.upload(P, { name: "MEP", discipline: "Mechanical" }, { name: "mep.ifc", type: "application/octet-stream", data: mep })).body;
+    const run = await owner.post(`/api/projects/${projectId}/clashes`, { modelAId: a.modelId, modelBId: b.modelId, toleranceMm: 10 });
+    expect(run.status).toBe(201);
+    expect(run.body).toMatchObject({ a: "Architecture v1", b: "MEP v1", clashCount: 1 });
+    expect(run.body.clashes[0]).toMatchObject({ a: { name: "Beam B1", type: "IfcBuildingElementProxy" }, b: { name: "Duct D1", type: "IfcDuctSegment" } });
+    expect(run.body.clashes[0].overlapM).toEqual([0.4, 0.3, 0.3]);
+    expect((await owner.post(`/api/projects/${projectId}/clashes`, { modelAId: a.modelId, modelBId: a.modelId })).status).toBe(400);
+    const history = (await owner.get(`/api/projects/${projectId}/clashes`)).body;
+    expect(history[0]).toMatchObject({ model_a: "Architecture v1", model_b: "MEP v1", clash_count: 1, run_by: "Olive Owner" });
+  });
+});

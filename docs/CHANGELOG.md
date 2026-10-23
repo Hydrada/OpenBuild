@@ -12,7 +12,7 @@
 - Bidder directory with prequalification.
 - Working calendar per project (weekdays and holidays) used by the critical path.
 - Resources with daily capacity and resource levelling.
-- Models: IFC model register with version element deltas.
+- Models: IFC register with version deltas, in-browser 3D viewer and clash detection between models.
 - Single sign-on: OpenID Connect and SAML 2.0.
 - Offline: photos queue on the device.
 - Storage: S3-compatible driver (AWS S3, MinIO, R2, Backblaze).

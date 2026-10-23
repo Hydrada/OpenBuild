@@ -882,4 +882,21 @@ ALTER TABLE schedule_items ADD COLUMN resource_id uuid REFERENCES schedule_resou
 ALTER TABLE schedule_items ADD COLUMN resource_units int NOT NULL DEFAULT 1 CHECK (resource_units BETWEEN 1 AND 10000);
 `,
   },
+  {
+    id: "0017_clash_runs",
+    sql: /* sql */ `
+-- Recorded clash-detection runs between two model versions.
+CREATE TABLE clash_runs (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  version_a   uuid NOT NULL REFERENCES bim_model_versions(id) ON DELETE CASCADE,
+  version_b   uuid NOT NULL REFERENCES bim_model_versions(id) ON DELETE CASCADE,
+  tolerance_m numeric(6,3) NOT NULL,
+  clash_count int NOT NULL,
+  results     jsonb NOT NULL,
+  created_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+`,
+  },
 ];
