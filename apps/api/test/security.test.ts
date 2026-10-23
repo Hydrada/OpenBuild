@@ -70,6 +70,7 @@ beforeAll(async () => {
   const form = (await owner.post(`${P}/forms`, { templateId: ftpl.id })).body;
   const est = (await owner.post(`${P}/estimates`, { name: "e" })).body;
   const catItem = (await owner.post(`/api/orgs/${orgId}/cost-catalog`, { name: "i", unit: "ea", unitCost: "1" })).body;
+  await owner.req("PUT", `${P}/budget/lines/${cc.id}/spread`, { start: "2026-10", end: "2026-12", curve: "linear" });
   const dlEntry = (await owner.post(`/api/daily-logs/${log.id}/entries`, { kind: "call", description: "c" })).body;
   const waiver = (await owner.post(`/api/invoices/${inv.id}/lien-waivers`, { kind: "conditional_progress" })).body;
   const report = (await owner.post(`/api/orgs/${orgId}/reports`, { name: "r", dataset: "rfis", config: { columns: ["subject"] } })).body;

@@ -1353,4 +1353,14 @@ CREATE TABLE estimate_lines (
 );
 `,
   },
+  {
+    id: "0031_cash_flow",
+    sql: /* sql */ `
+-- Cash-flow forecasting: how each cost code's estimate at completion spreads over months.
+ALTER TABLE budget_lines ADD COLUMN spread_start date;
+ALTER TABLE budget_lines ADD COLUMN spread_end date;
+ALTER TABLE budget_lines ADD COLUMN spread_curve text NOT NULL DEFAULT 'linear' CHECK (spread_curve IN ('linear','front','back','s_curve'));
+ALTER TABLE budget_lines ADD CONSTRAINT spread_order CHECK (spread_start IS NULL OR spread_end IS NULL OR spread_end >= spread_start);
+`,
+  },
 ];

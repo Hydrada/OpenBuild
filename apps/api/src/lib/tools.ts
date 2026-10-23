@@ -52,7 +52,7 @@ const SEGMENTS: Record<string, Tool> = {
   timesheets: "timesheets", crews: "timesheets", workers: "timesheets",
   equipment: "equipment",
   "tm-tickets": "tm_tickets",
-  budget: "budget", "budget.csv": "budget", "cost-codes": "budget", "direct-costs": "budget",
+  budget: "budget", "budget.csv": "budget", "cash-flow": "budget", "cash-flow.csv": "budget", "cost-codes": "budget", "direct-costs": "budget",
   contracts: "commitments", "change-events": "commitments", "change-orders": "commitments", invoices: "commitments",
   "lien-waivers": "commitments", "compliance-documents": "commitments", "my-contracts": "commitments",
   "bid-packages": "bidding",

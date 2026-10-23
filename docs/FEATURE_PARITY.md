@@ -43,7 +43,7 @@ Sources:
 | Financials | Change events, change orders | **Done** | Estimates, exposure, approval routing, deductive COs, void |
 | Financials | Subcontractor invoicing & compliance | **Done** | Invoice contacts on a commitment see it under "My contracts", start and fill their own pay applications and submit them (routed to a project manager); insurance certificates (GL, WC, auto, umbrella, W-9, licence) uploaded by the sub and accepted by the PM; lien waivers per invoice; optional payment holds until insurance is current and a waiver is in |
 | Financials | Invoices / pay applications | **Done** | AIA G702/G703-style math, retainage, previous certificates, over-billing guard, G703 CSV |
-| Financials | Forecasting | **Basic** | Forecast-to-complete per cost code drives EAC |
+| Financials | Forecasting | **Done** | Forecast-to-complete per cost code drives EAC; monthly cash flow spreading each code's EAC over its months (linear, front-loaded, back-loaded or S-curve; exact to the cent) against actuals by month from approved direct costs and subcontractor invoices; cumulative chart and CSV |
 | Preconstruction | Estimating | **Done** | Company cost catalog; project estimates with quantity x unit-cost lines by cost code and type; overhead, contingency, profit and bond markups compounded half-even and allocated back to cost codes to the cent; send to budget (finalizes; refused if the budget is locked); CSV export. No graphical takeoff |
 | Preconstruction | Bidding | **Done** | Bid packages, private bidder links (no account), revisions until due, leveling vs low bid, award → draft subcontract |
 | Preconstruction | Planroom | **Done** | Drawings/specs shared per bid package, downloadable only through that package's bidder links |

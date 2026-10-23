@@ -31,6 +31,7 @@ import { photoRoutes } from "./routes/photos.js";
 import { permissionTemplateRoutes } from "./routes/permission-templates.js";
 import { formRoutes } from "./routes/forms.js";
 import { estimateRoutes } from "./routes/estimates.js";
+import { cashFlowRoutes } from "./routes/cashflow.js";
 import { bimRoutes } from "./routes/bim.js";
 import { collabRoutes } from "./routes/collab.js";
 import { documentRoutes } from "./routes/documents.js";
@@ -196,6 +197,7 @@ export async function buildApp(config: AppConfig) {
   await app.register(permissionTemplateRoutes(config), { prefix: "/api" });
   await app.register(formRoutes(config), { prefix: "/api" });
   await app.register(estimateRoutes(config), { prefix: "/api" });
+  await app.register(cashFlowRoutes(config), { prefix: "/api" });
   await app.register(oidcRoutes(config), { prefix: "/api" });
   await app.register(samlRoutes(config), { prefix: "/api" });
 

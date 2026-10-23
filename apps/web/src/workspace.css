@@ -165,3 +165,5 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 .tags { display: flex; flex-wrap: wrap; gap: .25rem; margin: .2rem 0; }
 .tag { font-size: .75rem; padding: 0 .4rem; border-radius: 999px; background: #f4f4f5; border: 1px solid #e4e4e7; }
 .gallery details summary { cursor: pointer; font-size: .8rem; }
+
+.cashflow-chart { width: 100%; max-width: 720px; height: auto; margin: .4rem 0; }
