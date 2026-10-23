@@ -1,7 +1,7 @@
 import type { Queryable } from "../db/db.js";
 import { HttpError } from "./errors.js";
 
-export type EntityType = "document" | "submittal";
+export type EntityType = "document" | "submittal" | "change_order" | "invoice";
 export type Decision = "approved" | "approved_as_noted" | "revise_resubmit" | "rejected";
 
 /**

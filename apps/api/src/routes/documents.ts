@@ -3,12 +3,14 @@ import { z } from "zod";
 import { type AppConfig, requireUser } from "../app.js";
 import { decide, listSteps, startRound, type StepRow } from "../lib/approvals.js";
 import { audit } from "../lib/audit.js";
+import { computePayApp } from "../lib/finance.js";
 import { HttpError } from "../lib/errors.js";
 import { isUuid, requireProject } from "../lib/permissions.js";
 import { assertProjectMember, loadInProject } from "../lib/records.js";
 import { INLINE_TYPES, isPdf, readUpload, storeFile } from "../lib/uploads.js";
 
 type P = { Params: { projectId: string } };
+const APPROVAL_TABLE = { document: "documents", submittal: "submittals", change_order: "change_orders", invoice: "invoices" } as const;
 type Id = { Params: { id: string } };
 
 const ATTACHABLE = ["task", "rfi", "submittal", "daily_log", "inspection", "punch_item", "observation", "incident", "change_event", "change_order", "invoice"] as const;
@@ -276,22 +278,29 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
     if (!isUuid(req.params.id)) throw new HttpError(404, "Approval step not found");
     const [step] = await db.query<StepRow>("SELECT * FROM approval_steps WHERE id = $1", [req.params.id]);
     if (!step) throw new HttpError(404, "Approval step not found");
-    const table = step.entity_type === "document" ? "documents" : "submittals";
+    const table = APPROVAL_TABLE[step.entity_type];
+    const label = step.entity_type.replace(/_/g, " ");
     const { row, access } = await loadInProject<{ project_id: string; id: string; created_by: string | null }>(db, table, step.entity_id, user.id, "read", "Approval step");
-    if (step.entity_type === "document" && body.decision === "approved_as_noted") throw new HttpError(400, "Documents are approved or rejected");
-    if (step.entity_type === "document" && body.decision === "revise_resubmit") throw new HttpError(400, "Documents are approved or rejected");
+    if (step.entity_type !== "submittal" && (body.decision === "approved_as_noted" || body.decision === "revise_resubmit")) {
+      throw new HttpError(400, `A ${label} is approved or rejected`);
+    }
     return db.tx(async (q) => {
       const outcome = await decide(q, step, user.id, body.decision, body.comment || null);
       if (outcome) {
-        const status = step.entity_type === "document" ? (outcome === "rejected" ? "rejected" : "approved") : outcome;
-        await q.query(`UPDATE ${table} SET status = $2, updated_at = now() WHERE id = $1`, [row.id, status]);
-        if (row.created_by) await config.notify(q, [row.created_by], { kind: "approval", title: `Your ${step.entity_type} was ${status.replace(/_/g, " ")}`, link: `/${table}/${row.id}`, projectId: row.project_id, actorId: user.id });
+        const status = step.entity_type === "submittal" ? outcome : outcome === "rejected" ? "rejected" : "approved";
+        if (step.entity_type === "invoice" && status === "approved") {
+          const pa = await computePayApp(q, row.id);
+          if (pa.overbilled.length) throw new HttpError(409, `Billing exceeds the scheduled value on: ${pa.overbilled.join("; ")}`);
+        }
+        const extra = { document: ", updated_at = now()", submittal: ", updated_at = now()", change_order: ", decided_at = now()", invoice: status === "approved" ? ", approved_at = now()" : "" }[step.entity_type];
+        await q.query(`UPDATE ${table} SET status = $2${extra} WHERE id = $1`, [row.id, status]);
+        if (row.created_by) await config.notify(q, [row.created_by], { kind: "approval", title: `Your ${label} was ${status.replace(/_/g, " ")}`, link: `/${table}/${row.id}`, projectId: row.project_id, actorId: user.id });
       } else {
         const [next] = await q.query<{ approver_id: string }>(
           `SELECT approver_id FROM approval_steps WHERE entity_type = $1 AND entity_id = $2 AND round = $3 AND status = 'pending' ORDER BY seq LIMIT 1`,
           [step.entity_type, step.entity_id, step.round],
         );
-        if (next) await config.notify(q, [next.approver_id], { kind: "approval", title: `A ${step.entity_type} is waiting for your approval`, link: `/${table}/${row.id}`, projectId: row.project_id, actorId: user.id });
+        if (next) await config.notify(q, [next.approver_id], { kind: "approval", title: `A ${label} is waiting for your approval`, link: `/${table}/${row.id}`, projectId: row.project_id, actorId: user.id });
       }
       await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: `${step.entity_type}.decision`, entityType: step.entity_type, entityId: row.id, detail: { decision: body.decision, comment: body.comment, outcome } });
       return { ok: true, outcome };
@@ -303,10 +312,13 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
     const user = requireUser(req);
     return db.query(
       `SELECT s.id, s.entity_type, s.entity_id, s.created_at,
-              coalesce(d.name, 'Submittal #' || sb.number || ' ' || sb.title) AS title, coalesce(d.project_id, sb.project_id) AS project_id
+              coalesce(d.name, 'Submittal #' || sb.number || ' ' || sb.title, 'Change order #' || co.number || ' ' || co.title, 'Invoice #' || iv.number) AS title,
+              coalesce(d.project_id, sb.project_id, co.project_id, iv.project_id) AS project_id
          FROM approval_steps s
          LEFT JOIN documents d ON s.entity_type = 'document' AND d.id = s.entity_id
          LEFT JOIN submittals sb ON s.entity_type = 'submittal' AND sb.id = s.entity_id
+         LEFT JOIN change_orders co ON s.entity_type = 'change_order' AND co.id = s.entity_id
+         LEFT JOIN invoices iv ON s.entity_type = 'invoice' AND iv.id = s.entity_id
         WHERE s.approver_id = $1 AND s.status = 'pending'
           AND NOT EXISTS (SELECT 1 FROM approval_steps e WHERE e.entity_type = s.entity_type AND e.entity_id = s.entity_id AND e.round = s.round AND e.seq < s.seq AND e.status = 'pending')
         ORDER BY s.created_at`,

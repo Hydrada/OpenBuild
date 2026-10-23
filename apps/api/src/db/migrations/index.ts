@@ -441,4 +441,150 @@ CREATE TABLE incidents (
 );
 `,
   },
+  {
+    id: "0004_financials",
+    sql: /* sql */ `
+ALTER TABLE approval_steps DROP CONSTRAINT approval_steps_entity_type_check;
+ALTER TABLE approval_steps ADD CONSTRAINT approval_steps_entity_type_check
+  CHECK (entity_type IN ('document','submittal','change_order','invoice'));
+
+CREATE TABLE cost_codes (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  code        text NOT NULL,
+  description text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, code)
+);
+
+CREATE TABLE budget_lines (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id           uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  cost_code_id         uuid NOT NULL REFERENCES cost_codes(id) ON DELETE CASCADE,
+  original_amount      numeric(18,2) NOT NULL DEFAULT 0,
+  forecast_to_complete numeric(18,2),
+  notes                text,
+  locked               boolean NOT NULL DEFAULT false,
+  UNIQUE (project_id, cost_code_id)
+);
+
+-- Transfers between budget lines; each row nets to zero across from/to.
+CREATE TABLE budget_modifications (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id        uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  from_cost_code_id uuid NOT NULL REFERENCES cost_codes(id),
+  to_cost_code_id   uuid NOT NULL REFERENCES cost_codes(id),
+  amount            numeric(18,2) NOT NULL CHECK (amount > 0),
+  reason            text NOT NULL,
+  created_by        uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  CHECK (from_cost_code_id <> to_cost_code_id)
+);
+
+CREATE TABLE contracts (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id        uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  number            int NOT NULL,
+  kind              text NOT NULL CHECK (kind IN ('prime','subcontract','purchase_order')),
+  title             text NOT NULL,
+  counterparty      text NOT NULL,
+  status            text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','approved','complete','terminated')),
+  retainage_percent numeric(5,2) NOT NULL DEFAULT 0 CHECK (retainage_percent >= 0 AND retainage_percent <= 100),
+  executed_date     date,
+  created_by        uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  approved_at       timestamptz,
+  UNIQUE (project_id, number)
+);
+
+CREATE TABLE contract_lines (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  contract_id  uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  seq          int NOT NULL,
+  cost_code_id uuid NOT NULL REFERENCES cost_codes(id),
+  description  text NOT NULL,
+  amount       numeric(18,2) NOT NULL,
+  UNIQUE (contract_id, seq)
+);
+
+CREATE TABLE change_events (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  number      int NOT NULL,
+  title       text NOT NULL,
+  description text,
+  reason      text NOT NULL DEFAULT 'owner_change' CHECK (reason IN ('owner_change','design_error','unforeseen_condition','allowance','other')),
+  scope       text NOT NULL DEFAULT 'tbd' CHECK (scope IN ('in_scope','out_of_scope','tbd')),
+  status      text NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed','void')),
+  rfi_id      uuid REFERENCES rfis(id) ON DELETE SET NULL,
+  created_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, number)
+);
+
+CREATE TABLE change_event_lines (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  change_event_id   uuid NOT NULL REFERENCES change_events(id) ON DELETE CASCADE,
+  cost_code_id      uuid NOT NULL REFERENCES cost_codes(id),
+  description       text NOT NULL,
+  estimated_cost    numeric(18,2) NOT NULL DEFAULT 0,
+  estimated_revenue numeric(18,2) NOT NULL DEFAULT 0
+);
+
+CREATE TABLE change_orders (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id      uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  contract_id     uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  number          int NOT NULL,
+  change_event_id uuid REFERENCES change_events(id) ON DELETE SET NULL,
+  title           text NOT NULL,
+  description     text,
+  schedule_impact_days int NOT NULL DEFAULT 0,
+  status          text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','pending','approved','rejected','void')),
+  created_by      uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  decided_at      timestamptz,
+  UNIQUE (project_id, number)
+);
+
+CREATE TABLE change_order_lines (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  change_order_id uuid NOT NULL REFERENCES change_orders(id) ON DELETE CASCADE,
+  seq             int NOT NULL,
+  cost_code_id    uuid NOT NULL REFERENCES cost_codes(id),
+  description     text NOT NULL,
+  amount          numeric(18,2) NOT NULL,
+  UNIQUE (change_order_id, seq)
+);
+
+CREATE TABLE invoices (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id    uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  contract_id   uuid NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  number        int NOT NULL,
+  period_start  date NOT NULL,
+  period_end    date NOT NULL,
+  status        text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','submitted','approved','rejected','paid')),
+  created_by    uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  approved_at   timestamptz,
+  paid_at       timestamptz,
+  UNIQUE (project_id, number),
+  CHECK (period_end >= period_start)
+);
+
+-- One row per schedule-of-values item (contract line or approved CO line).
+CREATE TABLE invoice_lines (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id           uuid NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  contract_line_id     uuid REFERENCES contract_lines(id),
+  change_order_line_id uuid REFERENCES change_order_lines(id),
+  work_this_period     numeric(18,2) NOT NULL DEFAULT 0 CHECK (work_this_period >= 0),
+  materials_stored     numeric(18,2) NOT NULL DEFAULT 0 CHECK (materials_stored >= 0),
+  CHECK ((contract_line_id IS NULL) <> (change_order_line_id IS NULL))
+);
+CREATE UNIQUE INDEX invoice_lines_cl_key ON invoice_lines (invoice_id, contract_line_id) WHERE contract_line_id IS NOT NULL;
+CREATE UNIQUE INDEX invoice_lines_col_key ON invoice_lines (invoice_id, change_order_line_id) WHERE change_order_line_id IS NOT NULL;
+`,
+  },
 ];
