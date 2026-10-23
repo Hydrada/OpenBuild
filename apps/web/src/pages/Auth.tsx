@@ -5,17 +5,22 @@ import { useAction } from "../hooks";
 
 export function AuthPage({ onAuthed, allowSignup }: { onAuthed: () => void; allowSignup: boolean }) {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [form, setForm] = useState({ email: "", password: "", name: "", orgName: "" });
+  const [form, setForm] = useState({ email: "", password: "", name: "", orgName: "", code: "" });
+  const [needCode, setNeedCode] = useState(false);
   const { busy, error, run } = useAction();
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const ok = await run(() =>
-      mode === "login"
-        ? api("POST", "/auth/login", { email: form.email, password: form.password })
-        : api("POST", "/auth/register", form),
-    );
+    const ok = await run(async () => {
+      if (mode === "register") return api("POST", "/auth/register", { email: form.email, password: form.password, name: form.name, orgName: form.orgName });
+      try {
+        return await api("POST", "/auth/login", { email: form.email, password: form.password, ...(needCode ? { code: form.code } : {}) });
+      } catch (e) {
+        if ((e as Error).message.includes("authenticator") || (e as Error).message.includes("code is not valid")) setNeedCode(true);
+        throw e;
+      }
+    });
     if (ok) onAuthed();
   }
 
@@ -35,6 +40,9 @@ export function AuthPage({ onAuthed, allowSignup }: { onAuthed: () => void; allo
           <input type="password" value={form.password} onChange={set("password")} required minLength={mode === "register" ? 10 : undefined}
             autoComplete={mode === "login" ? "current-password" : "new-password"} />
         </Field>
+        {needCode && mode === "login" && (
+          <Field label="Authentication code"><input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" value={form.code} onChange={set("code")} required autoFocus /></Field>
+        )}
         <ErrorText error={error} />
         <button className="primary" disabled={busy}>{mode === "login" ? "Sign in" : "Create account"}</button>
         {allowSignup && (

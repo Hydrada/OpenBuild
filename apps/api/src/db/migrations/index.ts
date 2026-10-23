@@ -679,4 +679,50 @@ CREATE TABLE schedule_items (
 CREATE INDEX schedule_items_project_idx ON schedule_items (project_id, start_date);
 `,
   },
+  {
+    id: "0008_meetings_timesheets_mfa",
+    sql: /* sql */ `
+CREATE TABLE meetings (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title       text NOT NULL,
+  starts_at   timestamptz NOT NULL,
+  location    text,
+  status      text NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','minutes_published')),
+  attendee_ids uuid[] NOT NULL DEFAULT '{}',
+  created_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  published_at timestamptz
+);
+
+CREATE TABLE meeting_items (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  meeting_id  uuid NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+  seq         int NOT NULL,
+  topic       text NOT NULL,
+  notes       text,
+  assignee_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  due_date    date,
+  status      text NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed'))
+);
+
+CREATE TABLE timesheet_entries (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id      uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  work_date    date NOT NULL,
+  cost_code_id uuid REFERENCES cost_codes(id) ON DELETE SET NULL,
+  hours        numeric(5,2) NOT NULL CHECK (hours > 0 AND hours <= 24),
+  description  text,
+  status       text NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted','approved','rejected')),
+  decided_by   uuid REFERENCES users(id) ON DELETE SET NULL,
+  decided_at   timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX timesheet_project_idx ON timesheet_entries (project_id, work_date);
+
+ALTER TABLE users ADD COLUMN totp_secret text;
+ALTER TABLE users ADD COLUMN totp_enabled boolean NOT NULL DEFAULT false;
+`,
+  },
 ];

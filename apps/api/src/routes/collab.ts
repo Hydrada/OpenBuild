@@ -24,6 +24,7 @@ const COMMENTABLE = {
   change_event: { table: "change_events", related: null },
   change_order: { table: "change_orders", related: null },
   invoice: { table: "invoices", related: null },
+  meeting: { table: "meetings", related: null },
 } as const;
 type Commentable = keyof typeof COMMENTABLE;
 

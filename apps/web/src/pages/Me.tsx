@@ -90,12 +90,41 @@ function WorkList({ title, rows, href, render }: { title: string; rows: any[]; h
   );
 }
 
-export function AccountPage({ me }: { me: { user: { name: string; email: string } } }) {
+function TwoFactor({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+  const [setup, setSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  return (
+    <section className="card" aria-label="Two-factor login">
+      <h2>Two-factor login {enabled ? <Badge value="active" /> : null}</h2>
+      {enabled ? (
+        <Form ariaLabel="Turn off two-factor login" submitLabel="Turn off two-factor login" className="flat"
+          fields={[{ name: "password", label: "Password", type: "password", required: true }, { name: "code", label: "Current 6-digit code", required: true }]}
+          onSubmit={async (v) => { await api("POST", "/me/mfa/disable", v); onChange(); }} />
+      ) : setup ? (
+        <>
+          <p>Add this key to an authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code it shows.</p>
+          <p><code className="secret" aria-label="Setup key">{setup.secret.replace(/(.{4})/g, "$1 ").trim()}</code></p>
+          <p className="muted small">Or open this link on the phone: <a href={setup.otpauthUrl}>add to authenticator</a></p>
+          <Form ariaLabel="Confirm two-factor login" submitLabel="Turn on two-factor login" className="flat"
+            fields={[{ name: "code", label: "6-digit code", required: true }]}
+            onSubmit={async (v) => { await api("POST", "/me/mfa/enable", { code: v.code }); setSetup(null); onChange(); }} />
+        </>
+      ) : (
+        <>
+          <p className="muted">Require a code from an authenticator app in addition to your password.</p>
+          <ActionButton className="primary" onClick={async () => setSetup(await api("POST", "/me/mfa/setup"))}>Set up two-factor login</ActionButton>
+        </>
+      )}
+    </section>
+  );
+}
+
+export function AccountPage({ me, onChange }: { me: { user: { name: string; email: string; mfaEnabled?: boolean } }; onChange: () => void }) {
   const sessions = useApi<any[]>("/me/sessions");
   const [done, setDone] = useState(false);
   return (
     <>
       <PageHead title="Account" sub={`${me.user.name} · ${me.user.email}`} />
+      <TwoFactor enabled={!!me.user.mfaEnabled} onChange={onChange} />
       <Form ariaLabel="Change password" submitLabel="Change password" resetOnSuccess
         fields={[{ name: "currentPassword", label: "Current password", type: "password", required: true }, { name: "newPassword", label: "New password (10+ characters)", type: "password", required: true }]}
         onSubmit={async (v) => { setDone(false); await api("POST", "/me/password", v); setDone(true); sessions.reload(); }}>

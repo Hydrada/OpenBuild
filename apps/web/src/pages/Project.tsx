@@ -7,6 +7,7 @@ import { ActivityList } from "./Dashboard";
 import { DrawingsTool, DocumentsTool, SpecsTool } from "./tools/docs";
 import { RfisTool, SubmittalsTool } from "./tools/rfis";
 import { DailyLogsTool, IncidentsTool, InspectionsTool, ObservationsTool, PhotosTool, PunchTool } from "./tools/field";
+import { MeetingsTool, TimesheetsTool } from "./tools/meetings";
 import { ScheduleTool } from "./tools/schedule";
 import { BudgetTool, ChangeEventsTool, ChangeOrdersTool, ContractsTool, InvoicesTool } from "./tools/financials";
 
@@ -17,6 +18,7 @@ interface Tool { id: string; label: string; group: string; external?: boolean; r
 const TOOLS: Tool[] = [
   { id: "home", label: "Home", group: "Project", render: (p) => <Home project={p} /> },
   { id: "schedule", label: "Schedule", group: "Project", render: (p) => <ScheduleTool project={p} /> },
+  { id: "meetings", label: "Meetings", group: "Project", render: (p) => <MeetingsTool project={p} /> },
   { id: "team", label: "Team", group: "Project", render: (p) => <Team project={p} /> },
   { id: "activity", label: "Activity", group: "Project", render: (p) => <Activity projectId={p.id} /> },
   { id: "drawings", label: "Drawings", group: "Documents", external: true, render: (p) => <DrawingsTool project={p} /> },
@@ -30,6 +32,7 @@ const TOOLS: Tool[] = [
   { id: "observations", label: "Observations", group: "Field", external: true, render: (p) => <ObservationsTool project={p} /> },
   { id: "incidents", label: "Incidents", group: "Field", render: (p) => <IncidentsTool project={p} /> },
   { id: "photos", label: "Photos", group: "Field", render: (p) => <PhotosTool project={p} /> },
+  { id: "timesheets", label: "Timesheets", group: "Field", external: true, render: (p) => <TimesheetsTool project={p} /> },
   { id: "budget", label: "Budget", group: "Financials", render: (p) => <BudgetTool project={p} /> },
   { id: "contracts", label: "Contracts", group: "Financials", render: (p) => <ContractsTool project={p} /> },
   { id: "change-events", label: "Change events", group: "Financials", render: (p) => <ChangeEventsTool project={p} /> },

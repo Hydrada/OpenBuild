@@ -5,6 +5,7 @@ import { type AppConfig, SESSION_COOKIE, SESSION_DAYS, requireUser, setSessionCo
 import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { RateLimiter, hashPassword, newToken, sha256, verifyPassword } from "../lib/security.js";
+import { verifyTotp } from "../lib/totp.js";
 
 const email = z.string().trim().toLowerCase().pipe(z.email()).pipe(z.string().max(254));
 const password = z.string().min(10, "Password must be at least 10 characters").max(200);
@@ -44,15 +45,20 @@ export const authRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
   });
 
   app.post("/auth/login", async (req, reply) => {
-    const body = z.object({ email, password: z.string().max(200) }).parse(req.body);
+    const body = z.object({ email, password: z.string().max(200), code: z.string().trim().max(10).optional() }).parse(req.body);
     if (!loginLimiter.hit(`${req.ip}|${body.email}`)) throw new HttpError(429, "Too many sign-in attempts. Try again later.");
-    const [u] = await db.query<{ id: string; password_hash: string; disabled_at: string | null }>(
-      "SELECT id, password_hash, disabled_at FROM users WHERE lower(email) = $1",
+    const [u] = await db.query<{ id: string; password_hash: string; disabled_at: string | null; totp_enabled: boolean; totp_secret: string | null }>(
+      "SELECT id, password_hash, disabled_at, totp_enabled, totp_secret FROM users WHERE lower(email) = $1",
       [body.email],
     );
     // Verify against a dummy hash when the user is unknown so timing does not reveal account existence.
     const ok = await verifyPassword(body.password, u?.password_hash ?? DUMMY_HASH);
     if (!u || !ok || u.disabled_at) throw new HttpError(401, "Incorrect email or password");
+    // Second factor: only asked for after the password is correct.
+    if (u.totp_enabled) {
+      if (!body.code) return reply.code(401).send({ error: "Enter the 6-digit code from your authenticator app", mfaRequired: true });
+      if (!verifyTotp(u.totp_secret!, body.code)) return reply.code(401).send({ error: "That code is not valid", mfaRequired: true });
+    }
     await startSession(db, reply, u.id);
     return { id: u.id };
   });
@@ -66,12 +72,13 @@ export const authRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
 
   app.get("/me", async (req) => {
     const user = requireUser(req);
+    const [mfa] = await db.query<{ totp_enabled: boolean }>("SELECT totp_enabled FROM users WHERE id = $1", [user.id]);
     const orgs = await db.query(
       `SELECT o.id, o.name, m.role FROM org_memberships m JOIN organizations o ON o.id = m.org_id
         WHERE m.user_id = $1 ORDER BY o.created_at`,
       [user.id],
     );
-    return { user, orgs, allowSignup: config.allowSignup };
+    return { user: { ...user, mfaEnabled: !!mfa?.totp_enabled }, orgs, allowSignup: config.allowSignup };
   });
 
   app.get("/auth/config", async () => ({ allowSignup: config.allowSignup }));

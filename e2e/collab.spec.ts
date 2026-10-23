@@ -67,7 +67,7 @@ test("key screens have no serious accessibility violations", async ({ browser })
   const w = await world(browser);
   const { owner } = w;
   await api(owner).post(`/projects/${w.projectId}/rfis`, { subject: "a11y", question: "q" });
-  const pages = ["/", "/projects", "/team", "/settings", "/my-work", "/account", `/projects/${w.projectId}`, `/projects/${w.projectId}/rfis`, `/projects/${w.projectId}/punch`, `/projects/${w.projectId}/budget`, `/projects/${w.projectId}/schedule`];
+  const pages = ["/", "/projects", "/team", "/settings", "/my-work", "/account", `/projects/${w.projectId}`, `/projects/${w.projectId}/rfis`, `/projects/${w.projectId}/punch`, `/projects/${w.projectId}/budget`, `/projects/${w.projectId}/schedule`, `/projects/${w.projectId}/meetings`, `/projects/${w.projectId}/timesheets`];
   const failures: string[] = [];
   for (const path of pages) {
     await owner.goto(path);

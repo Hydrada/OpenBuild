@@ -20,14 +20,15 @@ Sources:
 | Docs | RFIs | **Done** | Numbering, ball-in-court, due/overdue, drawing/spec links, official answer, cost/schedule impact, attachments |
 | Docs | Submittals | **Done** | Types, spec link, ordered reviewers, approve / as noted / revise & resubmit / reject, revisions |
 | Docs | Markup / PDF editing | **Via adapters** | Scoped links for OpenDraft and the Acrobat alternative; markups stored per revision |
-| Docs | Meetings, Models (BIM) | Not built | |
+| Core | Meetings | **Done** | Agenda, attendees, minutes, action items with owners and due dates, publish + notify |
+| Docs | Models (BIM) | Not built | |
 | Field | Daily log | **Done** | Weather, temps, work, delays, visitors, manpower (decimal hours), photos, sign-off lock |
 | Field | Inspections | **Done** | Templates, pass/fail/N-A, failed item → punch item, completion rule |
 | Field | Punch list | **Done** | Assign, ready-for-review → verify with photo, CSV import |
 | Field | Observations, incidents | **Done** | Severity, assignee, resolution; OSHA recordable/lost time, investigation, corrective action required to close |
 | Field | Photos | **Done** | Library, camera capture on mobile, attach to records |
 | Field | Offline capture | **Done (create only)** | Outbox + replay-safe `clientId`; editing offline not supported |
-| Field | Timesheets | Not built | |
+| Field | Timesheets | **Done (basic)** | Self-logged hours by cost code (incl. subcontractors), 24 h/day guard, manager approval, no self-approval; no payroll export |
 | Financials | Budget, cost codes | **Done** | CSV import, lock, transfers, revised/committed/pending/exposure/cost-to-date/EAC/over-under, CSV export |
 | Financials | Prime contracts, commitments | **Done** | Prime, subcontracts, POs, schedule of values, retainage |
 | Financials | Change events, change orders | **Done** | Estimates, exposure, approval routing, deductive COs, void |
@@ -40,7 +41,8 @@ Sources:
 | Admin | Audit log | **Done** | Database-enforced append-only |
 | Admin | API keys, REST API | **Done** | See API.md |
 | Admin | Import/export, backups | **Done** | CSV, backup/restore CLI |
-| Admin | SSO / MFA | Not built | |
+| Admin | MFA | **Done** | TOTP authenticator apps (RFC 6238) |
+| Admin | SSO (SAML/OIDC) | Not built | |
 
 ## Existing open-source options reviewed
 Construction-specific open-source suites are scarce; mature options are general-purpose (OpenProject, Redmine, ERPNext, Odoo Community).

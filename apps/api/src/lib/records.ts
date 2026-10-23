@@ -6,7 +6,7 @@ import { isUuid, requireProject, type ProjectAccess, type ProjectAction } from "
 const PROJECT_TABLES = new Set([
   "tasks", "drawings", "folders", "documents", "spec_sections", "rfis", "submittals", "files",
   "daily_logs", "inspections", "punch_items", "observations", "incidents",
-  "cost_codes", "contracts", "change_events", "change_orders", "invoices", "budget_lines", "schedule_items",
+  "cost_codes", "contracts", "change_events", "change_orders", "invoices", "budget_lines", "schedule_items", "meetings", "timesheet_entries",
 ]);
 
 /** Loads a project-scoped row and checks the caller may perform `action` on its project. 404s hide other orgs' ids. */

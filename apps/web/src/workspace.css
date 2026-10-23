@@ -115,3 +115,7 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 .gantt-milestone { position: absolute; top: .2rem; width: .9rem; height: .9rem; background: #1c2330; transform: translateX(-50%) rotate(45deg); }
 .gantt-milestone.late { background: #b91c1c; }
 .gantt-today { position: absolute; top: -.15rem; bottom: -.15rem; width: 2px; background: var(--accent); z-index: 1; }
+
+.secret { font-size: 1.1rem; letter-spacing: .08em; background: #f2f4f7; padding: .3rem .5rem; border-radius: 4px; }
+.attendees { border: 1px solid var(--line); border-radius: 6px; display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; }
+.attendees legend { font-size: .85rem; color: var(--muted); }

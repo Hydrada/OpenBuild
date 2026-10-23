@@ -5,6 +5,7 @@ import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { isUuid, requireOrgRole } from "../lib/permissions.js";
 import { hashPassword, newToken, sha256, verifyPassword } from "../lib/security.js";
+import { newTotpSecret, verifyTotp } from "../lib/totp.js";
 
 const password = z.string().min(10, "Password must be at least 10 characters").max(200);
 
@@ -131,6 +132,44 @@ export const accountRoutes = (config: AppConfig): FastifyPluginAsync => async (a
       await audit(q, { orgId: req.params.orgId, actorId: user.id, action: "member.remove", entityType: "user", entityId: req.params.userId, detail: { role: target.role } });
       return { ok: true };
     });
+  });
+
+  // ---------- Two-factor authentication (TOTP) ----------
+
+  app.post("/me/mfa/setup", async (req) => {
+    const user = requireUser(req);
+    const [u] = await db.query<{ totp_enabled: boolean }>("SELECT totp_enabled FROM users WHERE id = $1", [user.id]);
+    if (u!.totp_enabled) throw new HttpError(409, "Two-factor login is already on");
+    const secret = newTotpSecret();
+    await db.query("UPDATE users SET totp_secret = $2 WHERE id = $1", [user.id, secret]);
+    const label = encodeURIComponent(`OpenBuild:${user.email}`);
+    return { secret, otpauthUrl: `otpauth://totp/${label}?secret=${secret}&issuer=OpenBuild&algorithm=SHA1&digits=6&period=30` };
+  });
+
+  app.post("/me/mfa/enable", async (req) => {
+    const user = requireUser(req);
+    const b = z.object({ code: z.string().trim() }).parse(req.body);
+    const [u] = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>("SELECT totp_secret, totp_enabled FROM users WHERE id = $1", [user.id]);
+    if (u!.totp_enabled) throw new HttpError(409, "Two-factor login is already on");
+    if (!u!.totp_secret || !verifyTotp(u!.totp_secret, b.code)) throw new HttpError(400, "That code is not valid");
+    await db.tx(async (q) => {
+      await q.query("UPDATE users SET totp_enabled = true WHERE id = $1", [user.id]);
+      await audit(q, { orgId: null, actorId: user.id, action: "user.mfa_enable", entityType: "user", entityId: user.id });
+    });
+    return { ok: true };
+  });
+
+  app.post("/me/mfa/disable", async (req) => {
+    const user = requireUser(req);
+    const b = z.object({ password: z.string().max(200), code: z.string().trim() }).parse(req.body);
+    const [u] = await db.query<{ password_hash: string; totp_secret: string | null; totp_enabled: boolean }>("SELECT password_hash, totp_secret, totp_enabled FROM users WHERE id = $1", [user.id]);
+    if (!u!.totp_enabled) throw new HttpError(409, "Two-factor login is off");
+    if (!(await verifyPassword(b.password, u!.password_hash)) || !verifyTotp(u!.totp_secret!, b.code)) throw new HttpError(400, "Password or code is incorrect");
+    await db.tx(async (q) => {
+      await q.query("UPDATE users SET totp_enabled = false, totp_secret = NULL WHERE id = $1", [user.id]);
+      await audit(q, { orgId: null, actorId: user.id, action: "user.mfa_disable", entityType: "user", entityId: user.id });
+    });
+    return { ok: true };
   });
 
   // ---------- Notifications ----------

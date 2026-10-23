@@ -13,6 +13,7 @@ import { TeamPage } from "./pages/Team";
 import { DocumentPage, DrawingPage } from "./pages/tools/docs";
 import { DailyLogPage, IncidentPage, InspectionPage, ObservationPage, PunchPage } from "./pages/tools/field";
 import { ChangeEventPage, ChangeOrderPage, ContractPage, InvoicePage } from "./pages/tools/financials";
+import { MeetingPage } from "./pages/tools/meetings";
 import { RfiPage, SubmittalPage } from "./pages/tools/rfis";
 import { match, navigate, usePath } from "./router";
 
@@ -33,6 +34,7 @@ const DETAIL: [string, (id: string) => JSX.Element][] = [
   ["change-events", (id) => <ChangeEventPage id={id} />],
   ["change-orders", (id) => <ChangeOrderPage id={id} />],
   ["invoices", (id) => <InvoicePage id={id} />],
+  ["meetings", (id) => <MeetingPage id={id} />],
 ];
 
 export function App() {
@@ -112,7 +114,7 @@ export function App() {
   else if (path === "/settings" && isAdmin) page = <OrgSettingsPage orgId={org.id} />;
   else if (path === "/notifications") page = <NotificationsPage onRead={loadUnread} />;
   else if (path === "/my-work") page = <MyWorkPage />;
-  else if (path === "/account") page = <AccountPage me={me} />;
+  else if (path === "/account") page = <AccountPage me={me} onChange={loadMe} />;
   else page = <Dashboard key={org.id} orgId={org.id} />;
 
   const nav: [string, string][] = [

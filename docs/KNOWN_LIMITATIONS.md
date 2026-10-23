@@ -1,7 +1,7 @@
 # Known limitations (0.2.0, 2026-10-22)
 
-- **Not Procore parity.** See FEATURE_PARITY.md for what is and is not built (no meetings, timesheets, bidding, BIM, scheduling).
-- **No SSO or MFA.** Password + session only.
+- **Not Procore parity.** See FEATURE_PARITY.md for what is and is not built (no bidding, BIM or critical-path scheduling).
+- **No SSO (SAML/OIDC).** Password + optional TOTP two-factor. No recovery codes yet: an admin cannot reset someone's second factor, so a lost phone needs database access (`UPDATE users SET totp_enabled=false`).
 - **Login rate limiting is in-memory**, per process — run one app instance per database.
 - **Storage is local disk only.** No S3 driver yet; back up the files directory/volume.
 - **Uploads are not virus-scanned.**
