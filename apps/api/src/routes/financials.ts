@@ -30,7 +30,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<P>("/projects/:projectId/cost-codes", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query("SELECT id, code, description FROM cost_codes WHERE project_id = $1 ORDER BY code", [req.params.projectId]);
   });
 
@@ -60,7 +60,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<P>("/projects/:projectId/budget", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     const report = await budgetReport(db, req.params.projectId);
     const [locked] = await db.query<{ locked: boolean }>("SELECT bool_or(locked) AS locked FROM budget_lines WHERE project_id = $1", [req.params.projectId]);
     const modifications = await db.query(
@@ -74,7 +74,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<P>("/projects/:projectId/budget.csv", async (req, reply) => {
     const user = requireUser(req);
-    const { project } = await requireProject(db, user.id, req.params.projectId, "read");
+    const { project } = await requireProject(db, user.id, req.params.projectId, "read.full");
     const { rows, totals } = await budgetReport(db, project.id);
     const headers = ["Cost code", "Description", "Original budget", "Budget modifications", "Approved changes", "Revised budget", "Pending budget changes", "Committed costs", "Pending cost changes", "Change event exposure", "Direct costs", "Forecast to complete", "Estimated cost at completion", "Projected over/under"];
     const data = rows.map((r) => [r.cost_code, r.description, r.original_budget, r.budget_modifications, r.approved_changes, r.revised_budget, r.pending_budget_changes, r.committed_costs, r.pending_cost_changes, r.change_event_exposure, r.direct_costs, r.forecast_to_complete, r.estimated_cost_at_completion, r.projected_over_under]);
@@ -145,7 +145,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<P>("/projects/:projectId/contracts", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query(
       `SELECT k.id, k.number, k.kind, k.title, k.counterparty, k.status, k.retainage_percent::text,
               coalesce((SELECT sum(amount) FROM contract_lines WHERE contract_id = k.id), 0)::text AS original_amount,
@@ -196,7 +196,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<Id>("/contracts/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "contracts", req.params.id, user.id, "read", "Contract");
+    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "contracts", req.params.id, user.id, "read.full", "Contract");
     const lines = await db.query(
       `SELECT l.id, l.seq, l.cost_code_id, c.code AS cost_code, l.description, l.amount::text FROM contract_lines l JOIN cost_codes c ON c.id = l.cost_code_id WHERE l.contract_id = $1 ORDER BY l.seq`,
       [row.id],
@@ -264,7 +264,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<P>("/projects/:projectId/change-events", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query(
       `SELECT ce.id, ce.number, ce.title, ce.reason, ce.scope, ce.status, ce.created_at,
               coalesce(sum(l.estimated_cost), 0)::text AS estimated_cost, coalesce(sum(l.estimated_revenue), 0)::text AS estimated_revenue,
@@ -303,7 +303,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<Id>("/change-events/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "change_events", req.params.id, user.id, "read", "Change event");
+    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "change_events", req.params.id, user.id, "read.full", "Change event");
     const lines = await db.query(
       `SELECT l.id, l.cost_code_id, c.code AS cost_code, l.description, l.estimated_cost::text, l.estimated_revenue::text FROM change_event_lines l JOIN cost_codes c ON c.id = l.cost_code_id WHERE l.change_event_id = $1 ORDER BY c.code`,
       [row.id],
@@ -348,7 +348,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<P>("/projects/:projectId/change-orders", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query(
       `SELECT co.id, co.number, co.title, co.status, co.schedule_impact_days, k.kind, k.title AS contract_title, k.counterparty,
               coalesce(sum(l.amount), 0)::text AS amount, ce.number AS change_event_number
@@ -386,7 +386,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<Id>("/change-orders/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string; contract_id: string }>(db, "change_orders", req.params.id, user.id, "read", "Change order");
+    const { row, access } = await loadInProject<{ project_id: string; id: string; contract_id: string }>(db, "change_orders", req.params.id, user.id, "read.full", "Change order");
     const [k] = await db.query("SELECT id, number, kind, title, counterparty FROM contracts WHERE id = $1", [row.contract_id]);
     const lines = await db.query(
       `SELECT l.id, l.seq, l.cost_code_id, c.code AS cost_code, l.description, l.amount::text FROM change_order_lines l JOIN cost_codes c ON c.id = l.cost_code_id WHERE l.change_order_id = $1 ORDER BY l.seq`,
@@ -448,7 +448,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<P>("/projects/:projectId/invoices", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     const rows = await db.query<{ id: string }>(
       `SELECT i.id, i.number, i.period_start, i.period_end, i.status, k.kind, k.title AS contract_title, k.counterparty
          FROM invoices i JOIN contracts k ON k.id = i.contract_id WHERE i.project_id = $1 ORDER BY i.created_at DESC`,
@@ -492,7 +492,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<Id>("/invoices/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string; contract_id: string }>(db, "invoices", req.params.id, user.id, "read", "Invoice");
+    const { row, access } = await loadInProject<{ project_id: string; id: string; contract_id: string }>(db, "invoices", req.params.id, user.id, "read.full", "Invoice");
     const pa = await computePayApp(db, row.id);
     const [k] = await db.query("SELECT id, number, kind, title, counterparty FROM contracts WHERE id = $1", [row.contract_id]);
     return { ...pa, contract: k, approvals: await listSteps(db, "invoice", row.id), myRole: access.role, myId: user.id };
@@ -500,7 +500,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
 
   app.get<Id>("/invoices/:id/g703.csv", async (req, reply) => {
     const user = requireUser(req);
-    const { row } = await loadInProject<{ project_id: string; id: string; number: number }>(db, "invoices", req.params.id, user.id, "read", "Invoice");
+    const { row } = await loadInProject<{ project_id: string; id: string; number: number }>(db, "invoices", req.params.id, user.id, "read.full", "Invoice");
     const pa = await computePayApp(db, row.id);
     const headers = ["Cost code", "Description", "Source", "Scheduled value", "From previous application", "This period", "Materials presently stored", "Completed and stored to date", "% complete", "Balance to finish", "Retainage"];
     const data = pa.lines.map((l) => [l.cost_code, l.description, l.source, l.scheduled_value, l.previous_work, l.work_this_period, l.materials_stored, l.completed_to_date, l.percent_complete, l.balance_to_finish, l.retainage]);

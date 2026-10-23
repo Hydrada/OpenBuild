@@ -9,7 +9,9 @@
     "start": "node dist/main.js",
     "migrate": "tsx src/db/migrate-cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "backup": "node dist/db/backup-cli.js",
+    "backup:dev": "tsx src/db/backup-cli.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.11",
@@ -18,11 +20,13 @@
     "@fastify/static": "^10.1.7",
     "decimal.js": "^10.6.0",
     "fastify": "^5.12.7",
+    "nodemailer": "^10.2.1",
     "pg": "^8.23.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.15.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.0",

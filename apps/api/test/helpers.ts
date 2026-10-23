@@ -1,4 +1,5 @@
-import { buildApp } from "../src/app.js";
+import { buildApp, type DocumentTool } from "../src/app.js";
+import type { Mailer } from "../src/lib/notify.js";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,13 +11,14 @@ import { migrate } from "../src/db/migrate.js";
 
 export type App = Awaited<ReturnType<typeof buildApp>>;
 
-export async function makeApp(opts: { dataDir?: string; storageDir?: string; allowSignup?: boolean } = {}) {
+export async function makeApp(opts: { dataDir?: string; storageDir?: string; allowSignup?: boolean; mailer?: Mailer; documentTools?: DocumentTool[] } = {}) {
   const db = opts.dataDir || !process.env.TEST_DATABASE_URL ? await createPgliteDb(opts.dataDir) : await freshPostgresSchema(process.env.TEST_DATABASE_URL);
   await migrate(db);
   const storage = new LocalStorage(opts.storageDir ?? mkdtempSync(join(tmpdir(), "openbuild-files-")));
   const app = await buildApp({
     db, storage, allowSignup: opts.allowSignup ?? true, secureCookies: false,
-    notify: createNotifier(), documentTools: [{ id: "opendraft", name: "OpenDraft" }],
+    notify: createNotifier({ mailer: opts.mailer, baseUrl: "http://openbuild.test" }), mailer: opts.mailer, baseUrl: "http://openbuild.test",
+    documentTools: opts.documentTools ?? [{ id: "opendraft", name: "OpenDraft" }],
   });
   return { app, db, storage };
 }
@@ -51,7 +53,7 @@ export class Client {
     return { status: res.statusCode, body: res.body ? res.json() : undefined };
   }
   /** multipart/form-data POST with text fields and an optional single file. */
-  async upload(url: string, fields: Record<string, string>, file?: { name: string; type: string; data: Buffer | string }) {
+  async upload(url: string, fields: Record<string, string>, file?: { name: string; type: string; data: Buffer | string }, extraHeaders: Record<string, string> = {}) {
     const boundary = "----openbuildtest" + Math.random().toString(16).slice(2);
     const CRLF = String.fromCharCode(13, 10);
     const parts: Buffer[] = [];
@@ -66,12 +68,12 @@ export class Client {
     parts.push(Buffer.from(`--${boundary}--${CRLF}`));
     const res = await this.app.inject({
       method: "POST", url, payload: Buffer.concat(parts),
-      headers: { "content-type": `multipart/form-data; boundary=${boundary}`, "x-openbuild-csrf": "1", ...(this.cookie ? { cookie: this.cookie } : {}) },
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}`, "x-openbuild-csrf": "1", ...(this.cookie ? { cookie: this.cookie } : {}), ...extraHeaders },
     });
     return { status: res.statusCode, body: res.body ? res.json() : undefined };
   }
-  async raw(url: string) {
-    return this.app.inject({ method: "GET", url, headers: this.cookie ? { cookie: this.cookie } : {} });
+  async raw(url: string, headers: Record<string, string> = {}) {
+    return this.app.inject({ method: "GET", url, headers: { ...(this.cookie ? { cookie: this.cookie } : {}), ...headers } });
   }
   del = (url: string) => this.req("DELETE", url);
   get = (url: string) => this.req("GET", url);

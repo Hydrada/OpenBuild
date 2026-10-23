@@ -5,12 +5,14 @@ import multipart from "@fastify/multipart";
 import { existsSync } from "node:fs";
 import { ZodError } from "zod";
 import type { Db } from "./db/db.js";
+import { requestScope } from "./lib/context.js";
 import { HttpError } from "./lib/errors.js";
 import { sha256 } from "./lib/security.js";
-import type { Notifier } from "./lib/notify.js";
+import type { Mailer, Notifier } from "./lib/notify.js";
 import type { Storage } from "./lib/storage.js";
 import { accountRoutes } from "./routes/account.js";
 import { authRoutes } from "./routes/auth.js";
+import { collabRoutes } from "./routes/collab.js";
 import { documentRoutes } from "./routes/documents.js";
 import { fieldRoutes } from "./routes/field.js";
 import { financialRoutes } from "./routes/financials.js";
@@ -28,6 +30,10 @@ export interface AppConfig {
   /** External document tools (OpenDraft, the Acrobat alternative, ...). See docs/INTEGRATIONS.md. */
   documentTools: DocumentTool[];
   maxUploadBytes?: number;
+  /** When set, invitations and reset links are also emailed. */
+  mailer?: Mailer;
+  /** Public URL of this server (e.g. https://build.example.com), used in emailed links. */
+  baseUrl?: string;
   /** Absolute path to the built web client, served at / when present. */
   webDist?: string;
   logger?: boolean;
@@ -49,6 +55,7 @@ export interface SessionUser {
 declare module "fastify" {
   interface FastifyRequest {
     user: SessionUser | null;
+    apiKeyOrgId: string | null;
   }
 }
 
@@ -63,11 +70,28 @@ export async function buildApp(config: AppConfig) {
   await app.register(multipart, { limits: { fileSize: config.maxUploadBytes ?? 100 * 1024 * 1024, files: 1, fields: 30 } });
 
   app.decorateRequest("user", null);
+  app.decorateRequest("apiKeyOrgId", null);
 
   app.addHook("onRequest", async (req, reply) => {
     if (!req.url.startsWith("/api/")) return;
-    if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !req.headers[CSRF_HEADER]) {
+    const bearer = /^Bearer (ob_[\w-]+)$/.exec(req.headers.authorization ?? "")?.[1];
+    // Cookie-authenticated writes must prove same-origin script (CSRF). API keys and tool links carry no cookie.
+    const tokenAuthenticated = !!bearer || req.url.startsWith("/api/tool/");
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !req.headers[CSRF_HEADER] && !tokenAuthenticated) {
       return reply.code(403).send({ error: "Missing CSRF header" });
+    }
+    if (bearer) {
+      const [k] = await config.db.query<SessionUser & { key_id: string; org_id: string }>(
+        `SELECT u.id, u.email, u.name, k.id AS key_id, k.org_id FROM api_keys k JOIN users u ON u.id = k.user_id
+          WHERE k.token_hash = $1 AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > now()) AND u.disabled_at IS NULL
+            AND EXISTS (SELECT 1 FROM org_memberships m WHERE m.org_id = k.org_id AND m.user_id = k.user_id AND m.role IN ('owner','admin'))`,
+        [sha256(bearer)],
+      );
+      if (!k) return reply.code(401).send({ error: "Invalid API key" });
+      await config.db.query("UPDATE api_keys SET last_used_at = now() WHERE id = $1", [k.key_id]);
+      req.user = { id: k.id, email: k.email, name: k.name };
+      req.apiKeyOrgId = k.org_id;
+      return;
     }
     const token = req.cookies[SESSION_COOKIE];
     if (!token) return;
@@ -77,6 +101,10 @@ export async function buildApp(config: AppConfig) {
       [sha256(token)],
     );
     req.user = rows[0] ?? null;
+  });
+  // Run the rest of the request inside its permission scope (callback style so the handler inherits it).
+  app.addHook("onRequest", (req, _reply, done) => {
+    requestScope.run({ apiKeyOrgId: req.apiKeyOrgId ?? undefined }, done);
   });
 
   app.addHook("onSend", async (_req, reply, payload) => {
@@ -114,6 +142,7 @@ export async function buildApp(config: AppConfig) {
   await app.register(rfiRoutes(config), { prefix: "/api" });
   await app.register(fieldRoutes(config), { prefix: "/api" });
   await app.register(financialRoutes(config), { prefix: "/api" });
+  await app.register(collabRoutes(config), { prefix: "/api" });
 
   if (config.webDist && existsSync(config.webDist)) {
     await app.register(fastifyStatic, { root: config.webDist, wildcard: false });

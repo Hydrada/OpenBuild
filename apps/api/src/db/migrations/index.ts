@@ -587,4 +587,62 @@ CREATE UNIQUE INDEX invoice_lines_cl_key ON invoice_lines (invoice_id, contract_
 CREATE UNIQUE INDEX invoice_lines_col_key ON invoice_lines (invoice_id, change_order_line_id) WHERE change_order_line_id IS NOT NULL;
 `,
   },
+  {
+    id: "0005_collaboration",
+    sql: /* sql */ `
+-- Subcontractor collaborators: see only what is assigned to them, plus drawings and specs.
+ALTER TABLE project_memberships DROP CONSTRAINT project_memberships_role_check;
+ALTER TABLE project_memberships ADD CONSTRAINT project_memberships_role_check
+  CHECK (role IN ('manager','contributor','viewer','subcontractor'));
+ALTER TABLE invitations DROP CONSTRAINT invitations_project_role_check;
+ALTER TABLE invitations ADD CONSTRAINT invitations_project_role_check
+  CHECK (project_role IN ('manager','contributor','viewer','subcontractor'));
+ALTER TABLE org_memberships ADD COLUMN company text;
+ALTER TABLE invitations ADD COLUMN company text;
+
+CREATE TABLE api_keys (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id       uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id      uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name         text NOT NULL,
+  prefix       text NOT NULL,
+  token_hash   text NOT NULL UNIQUE,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  last_used_at timestamptz,
+  expires_at   timestamptz,
+  revoked_at   timestamptz
+);
+
+-- Short-lived capability for an external document tool: download one revision, upload one markup.
+CREATE TABLE tool_tokens (
+  token_hash  text PRIMARY KEY,
+  revision_id uuid NOT NULL REFERENCES drawing_revisions(id) ON DELETE CASCADE,
+  user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tool        text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  expires_at  timestamptz NOT NULL,
+  uploaded_at timestamptz
+);
+
+CREATE TABLE custom_field_defs (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  entity_type text NOT NULL CHECK (entity_type IN ('project','rfi','submittal','punch_item','observation','task')),
+  key         text NOT NULL,
+  label       text NOT NULL,
+  type        text NOT NULL CHECK (type IN ('text','number','date','select','boolean')),
+  options     jsonb NOT NULL DEFAULT '[]'::jsonb,
+  required    boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (org_id, entity_type, key)
+);
+
+CREATE TABLE custom_field_values (
+  field_id    uuid NOT NULL REFERENCES custom_field_defs(id) ON DELETE CASCADE,
+  entity_id   uuid NOT NULL,
+  value       text NOT NULL,
+  PRIMARY KEY (field_id, entity_id)
+);
+`,
+  },
 ];

@@ -57,11 +57,11 @@ export const projectRoutes = (config: AppConfig): FastifyPluginAsync => async (a
 
   app.get<ProjectParams>("/projects/:projectId/members", async (req) => {
     const user = requireUser(req);
-    const { project } = await requireProject(db, user.id, req.params.projectId, "read");
+    const { project } = await requireProject(db, user.id, req.params.projectId, "read.full");
     // Org owners/admins have implicit access and are listed with their org role.
     return db.query(
       `SELECT u.id, u.name, u.email,
-              CASE WHEN om.role IN ('owner','admin') THEN 'admin' ELSE pm.role END AS role,
+              CASE WHEN om.role IN ('owner','admin') THEN 'admin' ELSE pm.role END AS role, om.company,
               pm.role AS project_role, om.role AS org_role
          FROM org_memberships om JOIN users u ON u.id = om.user_id
          LEFT JOIN project_memberships pm ON pm.project_id = $1 AND pm.user_id = om.user_id
@@ -74,7 +74,7 @@ export const projectRoutes = (config: AppConfig): FastifyPluginAsync => async (a
   app.put<{ Params: { projectId: string; userId: string } }>("/projects/:projectId/members/:userId", async (req) => {
     const user = requireUser(req);
     const { project } = await requireProject(db, user.id, req.params.projectId, "project.manage");
-    const body = z.object({ role: z.enum(["manager", "contributor", "viewer"]).nullable() }).parse(req.body);
+    const body = z.object({ role: z.enum(["manager", "contributor", "viewer", "subcontractor"]).nullable() }).parse(req.body);
     if (!isUuid(req.params.userId)) throw new HttpError(404, "Member not found");
     return db.tx(async (q) => {
       const inOrg = await q.query("SELECT 1 FROM org_memberships WHERE org_id = $1 AND user_id = $2", [project.org_id, req.params.userId]);
@@ -95,7 +95,7 @@ export const projectRoutes = (config: AppConfig): FastifyPluginAsync => async (a
 
   app.get<ProjectParams>("/projects/:projectId/tasks", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query(
       `SELECT t.*, u.name AS assignee_name FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id
         WHERE t.project_id = $1 ORDER BY (t.status = 'done'), t.due_date NULLS LAST, t.created_at`,
@@ -139,7 +139,7 @@ export const projectRoutes = (config: AppConfig): FastifyPluginAsync => async (a
 
   app.get<ProjectParams>("/projects/:projectId/activity", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query(
       `SELECT a.id, a.action, a.entity_type, a.entity_id, a.detail, a.created_at, u.name AS actor_name
          FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id

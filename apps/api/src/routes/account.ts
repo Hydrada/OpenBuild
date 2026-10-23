@@ -76,7 +76,13 @@ export const accountRoutes = (config: AppConfig): FastifyPluginAsync => async (a
       await q.query(`INSERT INTO password_resets (token_hash, user_id, created_by, expires_at) VALUES ($1, $2, $3, now() + interval '24 hours')`, [hash, req.params.userId, user.id]);
       await audit(q, { orgId: req.params.orgId, actorId: user.id, action: "user.reset_link", entityType: "user", entityId: req.params.userId });
     });
-    return reply.code(201).send({ resetPath: `/reset/${token}` });
+    const resetPath = `/reset/${token}`;
+    let emailSent = false;
+    if (config.mailer && config.baseUrl) {
+      const [u] = await db.query<{ email: string }>("SELECT email FROM users WHERE id = $1", [req.params.userId]);
+      emailSent = await config.mailer(u!.email, "Reset your OpenBuild password", `Set a new password within 24 hours: ${config.baseUrl}${resetPath}`).then(() => true, () => false);
+    }
+    return reply.code(201).send({ resetPath, emailSent });
   });
 
   app.get<{ Params: { token: string } }>("/password-resets/:token", async (req) => {

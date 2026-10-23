@@ -61,12 +61,12 @@ export const orgRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
     const user = requireUser(req);
     await requireOrgRole(db, user.id, req.params.orgId, ["owner", "admin", "member"]);
     const members = await db.query(
-      `SELECT u.id, u.name, u.email, m.role, m.created_at FROM org_memberships m JOIN users u ON u.id = m.user_id
+      `SELECT u.id, u.name, u.email, m.role, m.company, m.created_at FROM org_memberships m JOIN users u ON u.id = m.user_id
         WHERE m.org_id = $1 ORDER BY u.name`,
       [req.params.orgId],
     );
     const invitations = await db.query(
-      `SELECT i.id, i.email, i.org_role, i.project_role, p.name AS project_name, i.created_at, i.expires_at
+      `SELECT i.id, i.email, i.org_role, i.project_role, i.company, p.name AS project_name, i.created_at, i.expires_at
          FROM invitations i LEFT JOIN projects p ON p.id = i.project_id
         WHERE i.org_id = $1 AND i.accepted_at IS NULL AND i.expires_at > now() ORDER BY i.created_at DESC`,
       [req.params.orgId],
@@ -103,7 +103,8 @@ export const orgRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
         email: z.string().trim().toLowerCase().pipe(z.email()),
         orgRole: z.enum(["admin", "member"]).default("member"),
         projectId: z.uuid().optional().nullable(),
-        projectRole: z.enum(["manager", "contributor", "viewer"]).optional().nullable(),
+        projectRole: z.enum(["manager", "contributor", "viewer", "subcontractor"]).optional().nullable(),
+        company: z.string().trim().max(200).optional().nullable(),
       })
       .parse(req.body);
     if (body.orgRole === "admin" && myRole !== "owner") throw new HttpError(403, "Only the owner can invite admins");
@@ -120,15 +121,21 @@ export const orgRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
     const { token, hash } = newToken();
     const inv = await db.tx(async (q) => {
       const [row] = await q.query<{ id: string; expires_at: string }>(
-        `INSERT INTO invitations (org_id, email, org_role, project_id, project_role, token_hash, invited_by, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, now() + interval '7 days') RETURNING id, expires_at`,
-        [req.params.orgId, body.email, body.orgRole, body.projectId ?? null, body.projectRole ?? null, hash, user.id],
+        `INSERT INTO invitations (org_id, email, org_role, project_id, project_role, token_hash, invited_by, expires_at, company)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now() + interval '7 days', $8) RETURNING id, expires_at`,
+        [req.params.orgId, body.email, body.orgRole, body.projectId ?? null, body.projectRole ?? null, hash, user.id, body.company ?? null],
       );
       await audit(q, { orgId: req.params.orgId, projectId: body.projectId, actorId: user.id, action: "invitation.create", entityType: "invitation", entityId: row!.id, detail: { email: body.email, orgRole: body.orgRole, projectRole: body.projectRole } });
       return row!;
     });
-    // Email delivery is not implemented yet; the inviter shares this link (see docs/KNOWN_LIMITATIONS.md).
-    return reply.code(201).send({ id: inv.id, expiresAt: inv.expires_at, acceptPath: `/invite/${token}` });
+    const acceptPath = `/invite/${token}`;
+    let emailSent = false;
+    if (config.mailer && config.baseUrl) {
+      const [org] = await db.query<{ name: string }>("SELECT name FROM organizations WHERE id = $1", [req.params.orgId]);
+      emailSent = await config.mailer(body.email, `${user.name} invited you to ${org!.name} on OpenBuild`, `${user.name} invited you to join ${org!.name}.\n\nAccept within 7 days: ${config.baseUrl}${acceptPath}`).then(() => true, () => false);
+    }
+    // Without email the inviter shares the one-time link themselves.
+    return reply.code(201).send({ id: inv.id, expiresAt: inv.expires_at, acceptPath, emailSent });
   });
 
   app.get<OrgParams>("/orgs/:orgId/dashboard", async (req) => {
@@ -136,6 +143,8 @@ export const orgRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
     const role = await requireOrgRole(db, user.id, req.params.orgId, ["owner", "admin", "member"]);
     const seeAll = role !== "member";
     const scope = `p.org_id = $1 AND ($3 OR EXISTS (SELECT 1 FROM project_memberships pm WHERE pm.project_id = p.id AND pm.user_id = $2))`;
+    // Subcontractors do not see internal task stats or the activity feed of projects they collaborate on.
+    const scopeFull = `p.org_id = $1 AND ($3 OR EXISTS (SELECT 1 FROM project_memberships pm WHERE pm.project_id = p.id AND pm.user_id = $2 AND pm.role <> 'subcontractor'))`;
     const args = [req.params.orgId, user.id, seeAll];
     const [byStatus, taskStats, myTasks, activity] = await Promise.all([
       db.query(`SELECT p.status, count(*)::int AS count FROM projects p WHERE ${scope} GROUP BY p.status`, args),
@@ -143,20 +152,20 @@ export const orgRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
         `SELECT count(*) FILTER (WHERE t.status <> 'done')::int AS open,
                 count(*) FILTER (WHERE t.status <> 'done' AND t.due_date < current_date)::int AS overdue,
                 count(*) FILTER (WHERE t.status = 'done')::int AS done
-           FROM tasks t JOIN projects p ON p.id = t.project_id WHERE ${scope}`,
+           FROM tasks t JOIN projects p ON p.id = t.project_id WHERE ${scopeFull}`,
         args,
       ),
       db.query(
         `SELECT t.id, t.title, t.status, t.due_date, p.id AS project_id, p.name AS project_name
            FROM tasks t JOIN projects p ON p.id = t.project_id
-          WHERE ${scope} AND t.assignee_id = $2 AND t.status <> 'done'
+          WHERE ${scopeFull} AND t.assignee_id = $2 AND t.status <> 'done'
           ORDER BY t.due_date NULLS LAST, t.created_at LIMIT 20`,
         args,
       ),
       db.query(
         `SELECT a.id, a.action, a.entity_type, a.entity_id, a.detail, a.created_at, a.project_id, u.name AS actor_name, p.name AS project_name
            FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id LEFT JOIN projects p ON p.id = a.project_id
-          WHERE a.org_id = $1 AND (a.project_id IS NULL AND $3 OR a.project_id IN (SELECT p.id FROM projects p WHERE ${scope}))
+          WHERE a.org_id = $1 AND (a.project_id IS NULL AND $3 OR a.project_id IN (SELECT p.id FROM projects p WHERE ${scopeFull}))
           ORDER BY a.id DESC LIMIT 25`,
         args,
       ),

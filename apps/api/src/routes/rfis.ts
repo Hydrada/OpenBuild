@@ -5,7 +5,7 @@ import type { Queryable } from "../db/db.js";
 import { listSteps, startRound } from "../lib/approvals.js";
 import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
-import { requireProject } from "../lib/permissions.js";
+import { assertVisibleToSub, canWriteRecords, isSubcontractor, requireProject } from "../lib/permissions.js";
 import { assertProjectMember, loadInProject, nextNumber, toSet } from "../lib/records.js";
 
 type P = { Params: { projectId: string } };
@@ -49,15 +49,15 @@ export const rfiRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
 
   app.get<P & { Querystring: { status?: string } }>("/projects/:projectId/rfis", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    const access = await requireProject(db, user.id, req.params.projectId, "read");
     return db.query(
       `SELECT r.id, r.number, r.subject, r.status, r.due_date, r.created_at, r.cost_impact, r.schedule_impact,
               a.name AS assignee_name, r.assignee_id, d.number AS drawing_number,
               (r.status IN ('open') AND r.due_date < current_date) AS overdue
          FROM rfis r LEFT JOIN users a ON a.id = r.assignee_id LEFT JOIN drawings d ON d.id = r.drawing_id
-        WHERE r.project_id = $1 AND ($2::text IS NULL OR r.status = $2)
+        WHERE r.project_id = $1 AND ($2::text IS NULL OR r.status = $2) AND ($3::uuid IS NULL OR r.assignee_id = $3 OR r.created_by = $3)
         ORDER BY r.number DESC`,
-      [req.params.projectId, req.query.status || null],
+      [req.params.projectId, req.query.status || null, isSubcontractor(access) ? user.id : null],
     );
   });
 
@@ -82,7 +82,8 @@ export const rfiRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
 
   app.get<Id>("/rfis/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "rfis", req.params.id, user.id, "read", "RFI");
+    const { row, access } = await loadInProject<{ project_id: string; id: string; assignee_id: string | null; created_by: string | null }>(db, "rfis", req.params.id, user.id, "read", "RFI");
+    assertVisibleToSub(access, user.id, [row.assignee_id, row.created_by], "RFI");
     const [detail] = await db.query(
       `SELECT r.*, a.name AS assignee_name, c.name AS created_by_name, d.number AS drawing_number, s.number AS spec_number, s.title AS spec_title
          FROM rfis r LEFT JOIN users a ON a.id = r.assignee_id LEFT JOIN users c ON c.id = r.created_by
@@ -129,8 +130,9 @@ export const rfiRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string; assignee_id: string | null; created_by: string | null; number: number }>(db, "rfis", req.params.id, user.id, "read", "RFI");
     const b = z.object({ body: z.string().trim().min(1).max(20000), official: z.boolean().default(false) }).parse(req.body);
+    assertVisibleToSub(access, user.id, [row.assignee_id, row.created_by], "RFI");
     const isAssignee = row.assignee_id === user.id;
-    const canWrite = access.role !== "viewer";
+    const canWrite = canWriteRecords(access.role);
     if (!isAssignee && !canWrite) throw new HttpError(403, "You do not have permission to do that");
     if (b.official && !(isAssignee || access.role === "admin" || access.role === "manager")) throw new HttpError(403, "Only the assignee or a manager can give the official answer");
     if (row.status === "closed" || row.status === "draft") throw new HttpError(409, `The RFI is ${row.status}`);
@@ -150,7 +152,7 @@ export const rfiRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string; created_by: string | null; number: number }>(db, "rfis", req.params.id, user.id, "read", "RFI");
     const b = z.object({ status: z.enum(["open", "closed"]) }).parse(req.body);
     const manager = access.role === "admin" || access.role === "manager";
-    if (!manager && !(row.created_by === user.id && access.role !== "viewer")) throw new HttpError(403, "Only the creator or a manager can open or close an RFI");
+    if (!manager && !(row.created_by === user.id && canWriteRecords(access.role))) throw new HttpError(403, "Only the creator or a manager can open or close an RFI");
     if (b.status === "closed" && row.status === "closed") throw new HttpError(409, "Already closed");
     return db.tx(async (q) => {
       const [r] = await q.query(
@@ -166,14 +168,15 @@ export const rfiRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
 
   app.get<P>("/projects/:projectId/submittals", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    const access = await requireProject(db, user.id, req.params.projectId, "read");
     return db.query(
       `SELECT s.id, s.number, s.revision, s.title, s.type, s.status, s.due_date, sp.number AS spec_number,
               (SELECT u.name FROM approval_steps st JOIN users u ON u.id = st.approver_id
                 WHERE st.entity_type = 'submittal' AND st.entity_id = s.id AND st.status = 'pending' ORDER BY st.round DESC, st.seq LIMIT 1) AS ball_in_court
          FROM submittals s LEFT JOIN spec_sections sp ON sp.id = s.spec_section_id
-        WHERE s.project_id = $1 ORDER BY s.number DESC, s.revision DESC`,
-      [req.params.projectId],
+        WHERE s.project_id = $1 AND ($2::uuid IS NULL OR $2 = ANY(s.reviewer_ids) OR s.created_by = $2)
+        ORDER BY s.number DESC, s.revision DESC`,
+      [req.params.projectId, isSubcontractor(access) ? user.id : null],
     );
   });
 
@@ -198,7 +201,8 @@ export const rfiRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
 
   app.get<Id>("/submittals/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string; number: number }>(db, "submittals", req.params.id, user.id, "read", "Submittal");
+    const { row, access } = await loadInProject<{ project_id: string; id: string; number: number; reviewer_ids: string[]; created_by: string | null }>(db, "submittals", req.params.id, user.id, "read", "Submittal");
+    assertVisibleToSub(access, user.id, [...row.reviewer_ids, row.created_by], "Submittal");
     const [detail] = await db.query(
       `SELECT s.*, sp.number AS spec_number, sp.title AS spec_title, c.name AS created_by_name,
               (SELECT coalesce(json_agg(json_build_object('id', u.id, 'name', u.name) ORDER BY array_position(s.reviewer_ids, u.id)), '[]') FROM users u WHERE u.id = ANY(s.reviewer_ids)) AS reviewers

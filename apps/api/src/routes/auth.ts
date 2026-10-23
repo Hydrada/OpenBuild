@@ -112,8 +112,8 @@ export const authRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
       );
       if (!claimed.length) throw new HttpError(410, "This invitation has already been used");
       await q.query(
-        `INSERT INTO org_memberships (org_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT (org_id, user_id) DO NOTHING`,
-        [inv.org_id, userId, inv.org_role],
+        `INSERT INTO org_memberships (org_id, user_id, role, company) VALUES ($1, $2, $3, $4) ON CONFLICT (org_id, user_id) DO NOTHING`,
+        [inv.org_id, userId, inv.org_role, inv.company],
       );
       if (inv.project_id && inv.project_role) {
         await q.query(
@@ -131,10 +131,10 @@ export const authRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
 
 async function findInvitation(db: Queryable, token: string) {
   const [inv] = await db.query<{
-    id: string; org_id: string; email: string; org_role: string; project_id: string | null; project_role: string | null;
+    id: string; org_id: string; email: string; org_role: string; project_id: string | null; project_role: string | null; company: string | null;
     org_name: string; project_name: string | null; user_exists: boolean; accepted_at: string | null; expired: boolean;
   }>(
-    `SELECT i.id, i.org_id, i.email, i.org_role, i.project_id, i.project_role, i.accepted_at,
+    `SELECT i.id, i.org_id, i.email, i.org_role, i.project_id, i.project_role, i.company, i.accepted_at,
             o.name AS org_name, p.name AS project_name, i.expires_at < now() AS expired,
             EXISTS (SELECT 1 FROM users u WHERE lower(u.email) = lower(i.email)) AS user_exists
        FROM invitations i JOIN organizations o ON o.id = i.org_id LEFT JOIN projects p ON p.id = i.project_id

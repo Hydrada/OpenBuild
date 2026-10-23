@@ -5,7 +5,7 @@ import { decide, listSteps, startRound, type StepRow } from "../lib/approvals.js
 import { audit } from "../lib/audit.js";
 import { computePayApp } from "../lib/finance.js";
 import { HttpError } from "../lib/errors.js";
-import { isUuid, requireProject } from "../lib/permissions.js";
+import { assertVisibleToSub, canWriteRecords, isSubcontractor, isUuid, requireProject } from "../lib/permissions.js";
 import { assertProjectMember, loadInProject } from "../lib/records.js";
 import { INLINE_TYPES, isPdf, readUpload, storeFile } from "../lib/uploads.js";
 
@@ -27,7 +27,8 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
 
   app.post<P>("/projects/:projectId/files", async (req, reply) => {
     const user = requireUser(req);
-    const { project } = await requireProject(db, user.id, req.params.projectId, "record.write");
+    const { project, role } = await requireProject(db, user.id, req.params.projectId, "read");
+    if (!canWriteRecords(role) && role !== "subcontractor") throw new HttpError(403, "You do not have permission to do that");
     const up = await readUpload(req);
     if (!up.file) throw new HttpError(400, "Choose a file to upload");
     const file = await db.tx(async (q) => {
@@ -41,7 +42,7 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
   /** Photo library and general file list. `kind=image` filters to photos. */
   app.get<P & { Querystring: { kind?: string } }>("/projects/:projectId/files", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query(
       `SELECT f.id, f.name, f.mime, f.size, f.created_at, u.name AS uploaded_by_name,
               (SELECT json_agg(json_build_object('type', a.entity_type, 'id', a.entity_id)) FROM attachments a WHERE a.file_id = f.id) AS linked_to
@@ -54,7 +55,8 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
 
   app.get<Id & { Querystring: { inline?: string } }>("/files/:id/download", async (req, reply) => {
     const user = requireUser(req);
-    const { row } = await loadInProject<{ project_id: string; storage_key: string; name: string; mime: string; size: string }>(db, "files", req.params.id, user.id, "read", "File");
+    const { row, access } = await loadInProject<{ id: string; project_id: string; storage_key: string; name: string; mime: string; size: string; uploaded_by: string | null }>(db, "files", req.params.id, user.id, "read", "File");
+    if (isSubcontractor(access) && !(await subCanSeeFile(row.id, row.uploaded_by, user.id))) throw new HttpError(404, "File not found");
     const inline = req.query.inline === "1" && INLINE_TYPES.has(row.mime);
     reply.header("Content-Type", inline ? row.mime : "application/octet-stream");
     reply.header("Content-Length", row.size);
@@ -66,8 +68,11 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
   app.post("/attachments", async (req, reply) => {
     const user = requireUser(req);
     const body = z.object({ entityType: z.enum(ATTACHABLE), entityId: z.uuid(), fileId: z.uuid() }).parse(req.body);
-    const { row: entity, access } = await loadInProject(db, ATTACH_TABLE[body.entityType], body.entityId, user.id, "record.write");
-    const { row: file } = await loadInProject(db, "files", body.fileId, user.id, "read", "File");
+    const { row: entity, access } = await loadInProject<{ project_id: string; assignee_id?: string | null }>(db, ATTACH_TABLE[body.entityType], body.entityId, user.id, "read");
+    // Contributors+ attach anywhere; anyone may attach evidence to a record assigned to them.
+    if (!canWriteRecords(access.role) && entity.assignee_id !== user.id) throw new HttpError(403, "You do not have permission to do that");
+    const { row: file } = await loadInProject<{ project_id: string; uploaded_by: string | null }>(db, "files", body.fileId, user.id, "read", "File");
+    if (!canWriteRecords(access.role) && file.uploaded_by !== user.id) throw new HttpError(403, "You can only attach files you uploaded");
     if (file.project_id !== entity.project_id) throw new HttpError(400, "File belongs to a different project");
     await db.tx(async (q) => {
       await q.query(
@@ -78,6 +83,24 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
     });
     return reply.code(201).send({ ok: true });
   });
+
+  /** A subcontractor may download drawings, specs, their own uploads, and files on records visible to them. */
+  async function subCanSeeFile(fileId: string, uploadedBy: string | null, userId: string) {
+    if (uploadedBy === userId) return true;
+    const [hit] = await db.query(
+      `SELECT 1 WHERE EXISTS (SELECT 1 FROM drawing_revisions WHERE file_id = $1)
+          OR EXISTS (SELECT 1 FROM spec_sections WHERE file_id = $1)
+          OR EXISTS (SELECT 1 FROM attachments a
+                       LEFT JOIN rfis r ON a.entity_type = 'rfi' AND r.id = a.entity_id
+                       LEFT JOIN punch_items p ON a.entity_type = 'punch_item' AND p.id = a.entity_id
+                       LEFT JOIN observations o ON a.entity_type = 'observation' AND o.id = a.entity_id
+                       LEFT JOIN submittals s ON a.entity_type = 'submittal' AND s.id = a.entity_id
+                      WHERE a.file_id = $1 AND $2 IN (r.assignee_id, r.created_by, p.assignee_id, p.created_by, o.assignee_id, o.created_by, s.created_by)
+                         OR (a.file_id = $1 AND $2 = ANY(s.reviewer_ids)))`,
+      [fileId, userId],
+    );
+    return !!hit;
+  }
 
   // ---------- Drawings ----------
 
@@ -143,7 +166,10 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
         WHERE r.drawing_id = $1 ORDER BY r.created_at DESC`,
       [req.params.id],
     );
-    const rfis = await db.query("SELECT id, number, subject, status FROM rfis WHERE drawing_id = $1 ORDER BY number", [req.params.id]);
+    const rfis = await db.query(
+      "SELECT id, number, subject, status FROM rfis WHERE drawing_id = $1 AND ($2::uuid IS NULL OR assignee_id = $2 OR created_by = $2) ORDER BY number",
+      [req.params.id, isSubcontractor(access) ? user.id : null],
+    );
     return { ...row, revisions, rfis, myRole: access.role, tools: config.documentTools };
   });
 
@@ -171,7 +197,7 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
 
   app.get<P>("/projects/:projectId/folders", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query("SELECT id, parent_id, name FROM folders WHERE project_id = $1 ORDER BY name", [req.params.projectId]);
   });
 
@@ -189,7 +215,7 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
 
   app.get<P & { Querystring: { folderId?: string } }>("/projects/:projectId/documents", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     const folder = req.query.folderId && isUuid(req.query.folderId) ? req.query.folderId : null;
     return db.query(
       `SELECT d.id, d.name, d.status, d.folder_id, d.updated_at, v.version, v.file_id, u.name AS updated_by_name
@@ -243,7 +269,7 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
 
   app.get<Id>("/documents/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject(db, "documents", req.params.id, user.id, "read", "Document");
+    const { row, access } = await loadInProject(db, "documents", req.params.id, user.id, "read.full", "Document");
     const versions = await db.query(
       `SELECT v.id, v.version, v.file_id, v.note, v.created_at, u.name AS created_by_name, f.name AS file_name, f.size
          FROM document_versions v JOIN files f ON f.id = v.file_id LEFT JOIN users u ON u.id = v.created_by

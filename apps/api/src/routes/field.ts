@@ -4,7 +4,7 @@ import { type AppConfig, requireUser } from "../app.js";
 import type { Queryable } from "../db/db.js";
 import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
-import { isUuid, requireOrgRole, requireProject } from "../lib/permissions.js";
+import { assertVisibleToSub, canWriteRecords, isSubcontractor, isUuid, requireOrgRole, requireProject } from "../lib/permissions.js";
 import { assertProjectMember, loadInProject, nextNumber, toSet } from "../lib/records.js";
 
 type P = { Params: { projectId: string } };
@@ -68,7 +68,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
 
   app.get<P & { Querystring: { from?: string; to?: string } }>("/projects/:projectId/daily-logs", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     const date = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
     return db.query(
       `SELECT l.id, l.log_date, l.weather, l.status, l.temp_low, l.temp_high,
@@ -110,7 +110,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
 
   app.get<Id>("/daily-logs/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "daily_logs", req.params.id, user.id, "read", "Daily log");
+    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "daily_logs", req.params.id, user.id, "read.full", "Daily log");
     const [detail] = await db.query(
       `SELECT l.*, c.name AS created_by_name, s.name AS signed_by_name FROM daily_logs l
          LEFT JOIN users c ON c.id = l.created_by LEFT JOIN users s ON s.id = l.signed_by WHERE l.id = $1`,
@@ -170,7 +170,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
 
   app.get<P>("/projects/:projectId/inspections", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query(
       `SELECT i.id, i.title, i.location, i.status, i.created_at, i.completed_at, u.name AS inspector_name,
               count(it.*) FILTER (WHERE it.result = 'fail')::int AS failed,
@@ -216,7 +216,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
 
   app.get<Id>("/inspections/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "inspections", req.params.id, user.id, "read", "Inspection");
+    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "inspections", req.params.id, user.id, "read.full", "Inspection");
     const [detail] = await db.query(`SELECT i.*, u.name AS inspector_name FROM inspections i LEFT JOIN users u ON u.id = i.inspector_id WHERE i.id = $1`, [row.id]);
     const items = await db.query(
       `SELECT it.id, it.seq, it.text, it.result, it.note, it.punch_item_id, p.number AS punch_number, p.status AS punch_status
@@ -282,7 +282,8 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
 
   app.get<P & { Querystring: { status?: string; mine?: string } }>("/projects/:projectId/punch-items", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    const access = await requireProject(db, user.id, req.params.projectId, "read");
+    const onlyMine = req.query.mine === "1" || isSubcontractor(access);
     return db.query(
       `SELECT p.id, p.number, p.title, p.location, p.trade, p.status, p.due_date, p.assignee_id, u.name AS assignee_name,
               (p.status <> 'closed' AND p.due_date < current_date) AS overdue,
@@ -290,7 +291,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
          FROM punch_items p LEFT JOIN users u ON u.id = p.assignee_id
         WHERE p.project_id = $1 AND ($2::text IS NULL OR p.status = $2) AND ($3::uuid IS NULL OR p.assignee_id = $3)
         ORDER BY (p.status = 'closed'), p.number`,
-      [req.params.projectId, req.query.status || null, req.query.mine === "1" ? user.id : null],
+      [req.params.projectId, req.query.status || null, onlyMine ? user.id : null],
     );
   });
 
@@ -314,7 +315,8 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
 
   app.get<Id>("/punch-items/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "punch_items", req.params.id, user.id, "read", "Punch item");
+    const { row, access } = await loadInProject<{ project_id: string; id: string; assignee_id: string | null; created_by: string | null }>(db, "punch_items", req.params.id, user.id, "read", "Punch item");
+    assertVisibleToSub(access, user.id, [row.assignee_id, row.created_by], "Punch item");
     const [detail] = await db.query(
       `SELECT p.*, u.name AS assignee_name, c.name AS created_by_name,
               (SELECT json_build_object('id', i.id, 'title', i.title) FROM inspection_items it JOIN inspections i ON i.id = it.inspection_id WHERE it.punch_item_id = p.id LIMIT 1) AS inspection
@@ -347,9 +349,10 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
   app.post<Id>("/punch-items/:id/status", async (req) => {
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string; number: number; title: string; assignee_id: string | null; created_by: string | null }>(db, "punch_items", req.params.id, user.id, "read", "Punch item");
+    assertVisibleToSub(access, user.id, [row.assignee_id, row.created_by], "Punch item");
     const b = z.object({ status: z.enum(["open", "ready_for_review", "closed"]), requirePhoto: z.boolean().optional() }).parse(req.body);
     const manager = access.role === "admin" || access.role === "manager";
-    const verifier = manager || (row.created_by === user.id && access.role !== "viewer");
+    const verifier = manager || (row.created_by === user.id && canWriteRecords(access.role));
     if (b.status === "ready_for_review") {
       if (row.assignee_id !== user.id && !verifier) throw new HttpError(403, "Only the assignee can mark this ready for review");
       if (row.status !== "open") throw new HttpError(409, "Only open items can be marked ready");
@@ -387,11 +390,13 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
 
   app.get<P>("/projects/:projectId/observations", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    const access = await requireProject(db, user.id, req.params.projectId, "read");
     return db.query(
       `SELECT o.id, o.type, o.severity, o.title, o.location, o.status, o.due_date, o.created_at, u.name AS assignee_name
-         FROM observations o LEFT JOIN users u ON u.id = o.assignee_id WHERE o.project_id = $1 ORDER BY (o.status = 'closed'), o.created_at DESC`,
-      [req.params.projectId],
+         FROM observations o LEFT JOIN users u ON u.id = o.assignee_id
+        WHERE o.project_id = $1 AND ($2::uuid IS NULL OR o.assignee_id = $2 OR o.created_by = $2)
+        ORDER BY (o.status = 'closed'), o.created_at DESC`,
+      [req.params.projectId, isSubcontractor(access) ? user.id : null],
     );
   });
 
@@ -414,7 +419,8 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
 
   app.get<Id>("/observations/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "observations", req.params.id, user.id, "read", "Observation");
+    const { row, access } = await loadInProject<{ project_id: string; id: string; assignee_id: string | null; created_by: string | null }>(db, "observations", req.params.id, user.id, "read", "Observation");
+    assertVisibleToSub(access, user.id, [row.assignee_id, row.created_by], "Observation");
     const [detail] = await db.query(`SELECT o.*, u.name AS assignee_name, c.name AS created_by_name FROM observations o LEFT JOIN users u ON u.id = o.assignee_id LEFT JOIN users c ON c.id = o.created_by WHERE o.id = $1`, [row.id]);
     return { ...detail, photos: await attachmentsOf("observation", row.id), myRole: access.role };
   });
@@ -422,7 +428,8 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
   app.post<Id>("/observations/:id/close", async (req) => {
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string; assignee_id: string | null }>(db, "observations", req.params.id, user.id, "read", "Observation");
-    if (access.role === "viewer" && row.assignee_id !== user.id) throw new HttpError(403, "You do not have permission to do that");
+    assertVisibleToSub(access, user.id, [row.assignee_id], "Observation");
+    if (!canWriteRecords(access.role) && row.assignee_id !== user.id) throw new HttpError(403, "You do not have permission to do that");
     if (row.status === "closed") throw new HttpError(409, "Already closed");
     const b = z.object({ resolution: z.string().trim().min(1).max(5000) }).parse(req.body);
     return db.tx(async (q) => {
@@ -448,7 +455,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
 
   app.get<P>("/projects/:projectId/incidents", async (req) => {
     const user = requireUser(req);
-    await requireProject(db, user.id, req.params.projectId, "read");
+    await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query(
       `SELECT id, occurred_at, type, title, status, osha_recordable, lost_time FROM incidents WHERE project_id = $1 ORDER BY occurred_at DESC`,
       [req.params.projectId],
@@ -480,7 +487,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
 
   app.get<Id>("/incidents/:id", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "incidents", req.params.id, user.id, "read", "Incident");
+    const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "incidents", req.params.id, user.id, "read.full", "Incident");
     const [detail] = await db.query(`SELECT i.*, c.name AS created_by_name FROM incidents i LEFT JOIN users c ON c.id = i.created_by WHERE i.id = $1`, [row.id]);
     return { ...detail, photos: await attachmentsOf("incident", row.id), myRole: access.role };
   });
