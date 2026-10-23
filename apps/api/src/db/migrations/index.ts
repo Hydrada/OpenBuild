@@ -1166,4 +1166,20 @@ CREATE TABLE saved_reports (
 CREATE INDEX saved_reports_org ON saved_reports (org_id);
 `,
   },
+  {
+    id: "0025_drawing_annotations",
+    sql: /* sql */ `
+-- In-app drawing markups: one personal layer per user per revision, optionally published to the project.
+CREATE TABLE drawing_annotations (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  revision_id  uuid NOT NULL REFERENCES drawing_revisions(id) ON DELETE CASCADE,
+  author_id    uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  shapes       jsonb NOT NULL DEFAULT '[]',
+  published_at timestamptz,
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (revision_id, author_id)
+);
+`,
+  },
 ];

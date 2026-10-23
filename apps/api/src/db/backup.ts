@@ -5,7 +5,7 @@ import { migrations } from "./migrations/index.js";
 export const TABLE_ORDER = [
   "users", "organizations", "org_memberships", "sessions", "oidc_states", "password_resets", "api_keys",
   "workers", "projects", "project_holidays", "project_memberships", "invitations", "tasks",
-  "files", "attachments", "drawings", "drawing_revisions", "markup_sets", "tool_tokens",
+  "files", "attachments", "drawings", "drawing_revisions", "markup_sets", "drawing_annotations", "tool_tokens",
   "folders", "documents", "document_versions", "approval_steps", "spec_sections",
   "rfis", "rfi_responses", "submittals", "notifications", "comments",
   "daily_logs", "daily_log_manpower", "inspection_templates", "inspections", "punch_items", "inspection_items",

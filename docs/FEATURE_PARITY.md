@@ -20,7 +20,7 @@ Sources:
 | Docs | Specifications | **Done** | MasterFormat sections with optional PDF |
 | Docs | RFIs | **Done** | Numbering, ball-in-court, due/overdue, drawing/spec links, official answer, cost/schedule impact, attachments |
 | Docs | Submittals | **Done** | Types, spec link, ordered reviewers, approve / as noted / revise & resubmit / reject, revisions |
-| Docs | Markup / PDF editing | **Via adapters** | Scoped links for OpenDraft and the Acrobat alternative; markups stored per revision |
+| Docs | Markup / PDF editing | **Done** | In-browser sheet viewer (pdf.js) with zoom; box, cloud, ellipse, arrow, text and pen markups in a personal layer that the team can publish and others toggle; revision compare overlay (removed red, added blue); plus scoped links for OpenDraft and the Acrobat alternative for full PDF editing |
 | Core | Correspondence | **Done** | Transmittals, notices, instructions, letters and memos numbered per type (TR-001…), recipients with read acknowledgement, private items, drafts, attachments, comments, close/reopen; subcontractors see only items addressed to them |
 | Core | Action plans / closeout | **Done** | Checklists by section with assignees, due dates and required documents; standard closeout template (O&Ms, as-builts, warranties, lien waivers, CO…); copy a plan between projects; progress and overdue counts; subcontractors see and complete only their items |
 | Core | Meetings | **Done** | Agenda, attendees, minutes, action items with owners and due dates, publish + notify |

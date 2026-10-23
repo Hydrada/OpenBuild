@@ -143,3 +143,19 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 .la-grid tr.la-activity th { font-weight: 600; text-align: left; }
 .la-grid .danger { color: #b91c1c; }
 @media print { .tool-nav, .tool-bar, .project-search, header.top { display: none !important; } .project-body { display: block; } }
+
+/* ---------- Sheet viewer ---------- */
+.sheet-toolbar { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; margin-bottom: .5rem; }
+.sheet-toolbar button.active { outline: 2px solid var(--accent, #c2410c); }
+.sheet-toolbar .sep { width: 1px; height: 1.4rem; background: #d4d4d8; margin: 0 .3rem; }
+.sheet-scroll { overflow: auto; max-height: 78vh; border: 1px solid #e4e4e7; background: #f4f4f5; }
+.sheet-stack { position: relative; }
+.sheet-stack canvas { display: block; background: #fff; }
+.sheet-overlay { position: absolute; inset: 0; touch-action: none; }
+.sheet-overlay.tool-view { pointer-events: none; }
+.sheet-overlay:not(.tool-view) { cursor: crosshair; }
+.sheet-text { position: absolute; transform: translateY(-100%); }
+.sheet-text input { font-size: 14px; padding: 2px 4px; }
+.layers { display: flex; flex-wrap: wrap; gap: .8rem; margin-bottom: .4rem; }
+.swatch { display: inline-block; width: .8rem; height: .8rem; vertical-align: middle; border-radius: 2px; }
+.swatch.removed { background: #dc2626; } .swatch.added { background: #1d4ed8; }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { api, fmtBytes, fmtDate, fmtDateTime, upload } from "../../api";
 import { Approvals, Comments, canWrite, useMemberOptions } from "../../components/records";
 import { Badge, Creator, DataTable, ErrorText, Form, Link, Loading, PageHead } from "../../components/ui";
@@ -58,6 +58,8 @@ export function DrawingsTool({ project }: { project: ProjectInfo }) {
   );
 }
 
+const SheetViewer = lazy(() => import("../../components/SheetViewer"));
+
 export function DrawingPage({ id }: { id: string }) {
   const d = useApi(`/drawings/${id}`);
   const [toolLink, setToolLink] = useState<{ downloadUrl: string; uploadUrl: string; launchUrl: string | null } | null>(null);
@@ -71,11 +73,12 @@ export function DrawingPage({ id }: { id: string }) {
     <>
       <PageHead back={{ to: `/projects/${dr.project_id}/drawings`, label: "Drawings" }} title={`${dr.number} — ${dr.title}`} sub={`${dr.discipline} · current revision ${current?.revision ?? "—"}`} />
       {current && (
-        <section className="card viewer">
-          <object data={`/api/files/${current.file_id}/download?inline=1`} type="application/pdf" aria-label={`Sheet ${dr.number} revision ${current.revision}`}>
-            <a href={`/api/files/${current.file_id}/download`}>Download the PDF</a>
-          </object>
-        </section>
+        <Suspense fallback={<section className="card"><Loading /></section>}>
+          <SheetViewer key={current.id} revisionId={current.id} label={`Sheet ${dr.number} revision ${current.revision}`}
+            fileUrl={`/api/files/${current.file_id}/download?inline=1`}
+            revisions={dr.revisions.map((r: any) => ({ id: r.id, revision: r.revision, fileUrl: `/api/files/${r.file_id}/download?inline=1` }))} />
+          <p className="muted small"><a href={`/api/files/${current.file_id}/download`}>Download the PDF</a></p>
+        </Suspense>
       )}
       {writable && current && (
         <section className="card">

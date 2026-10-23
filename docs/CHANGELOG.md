@@ -11,6 +11,7 @@
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
 - Correspondence (transmittals, notices, instructions, letters, memos) with acknowledgements.
+- Drawings open in an in-browser viewer with markups (personal or published layers) and a revision compare overlay. Previously the embedded viewer was blocked by the content security policy and only offered a download link.
 - PDF exports for RFIs, submittals, daily logs, minutes, change orders, T&M tickets, pay applications (G702/G703) and the punch list.
 - Custom reports: choose data, columns and filters, group and total, across projects; save, share and export CSV.
 - Crews: a company directory of field workers without logins; foremen enter crew time, managers approve.
