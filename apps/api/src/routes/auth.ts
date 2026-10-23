@@ -90,7 +90,7 @@ export const authRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
     return { user: { ...user, mfaEnabled: !!mfa?.totp_enabled }, orgs, allowSignup: config.allowSignup };
   });
 
-  app.get("/auth/config", async () => ({ allowSignup: config.allowSignup }));
+  app.get("/auth/config", async () => ({ allowSignup: config.allowSignup, sso: config.oidc ? { name: config.oidc.name } : null }));
 
   // ---- Invitations (accepting is part of auth: it may create the account) ----
 

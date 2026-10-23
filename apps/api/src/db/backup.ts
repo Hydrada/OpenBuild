@@ -3,7 +3,7 @@ import { migrations } from "./migrations/index.js";
 
 /** Tables in foreign-key order (parents first). Every application table must be listed. */
 export const TABLE_ORDER = [
-  "users", "organizations", "org_memberships", "sessions", "password_resets", "api_keys",
+  "users", "organizations", "org_memberships", "sessions", "oidc_states", "password_resets", "api_keys",
   "projects", "project_memberships", "invitations", "tasks",
   "files", "attachments", "drawings", "drawing_revisions", "markup_sets", "tool_tokens",
   "folders", "documents", "document_versions", "approval_steps", "spec_sections",
@@ -12,7 +12,7 @@ export const TABLE_ORDER = [
   "observations", "incidents",
   "cost_codes", "budget_lines", "budget_modifications", "contracts", "contract_lines",
   "change_events", "change_event_lines", "change_orders", "change_order_lines", "invoices", "invoice_lines",
-  "schedule_items", "meetings", "meeting_items", "timesheet_entries", "custom_field_defs", "custom_field_values", "audit_log",
+  "schedule_items", "meetings", "meeting_items", "timesheet_entries", "bid_packages", "bidders", "bim_models", "bim_model_versions", "custom_field_defs", "custom_field_values", "audit_log",
 ] as const;
 
 export interface Backup {

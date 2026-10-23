@@ -84,12 +84,13 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
     return reply.code(201).send({ ok: true });
   });
 
-  /** A subcontractor may download drawings, specs, their own uploads, and files on records visible to them. */
+  /** A subcontractor may download drawings, specs, BIM models, their own uploads, and files on records visible to them. */
   async function subCanSeeFile(fileId: string, uploadedBy: string | null, userId: string) {
     if (uploadedBy === userId) return true;
     const [hit] = await db.query(
       `SELECT 1 WHERE EXISTS (SELECT 1 FROM drawing_revisions WHERE file_id = $1)
           OR EXISTS (SELECT 1 FROM spec_sections WHERE file_id = $1)
+          OR EXISTS (SELECT 1 FROM bim_model_versions WHERE file_id = $1)
           OR EXISTS (SELECT 1 FROM attachments a
                        LEFT JOIN rfis r ON a.entity_type = 'rfi' AND r.id = a.entity_id
                        LEFT JOIN punch_items p ON a.entity_type = 'punch_item' AND p.id = a.entity_id

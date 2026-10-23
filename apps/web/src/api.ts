@@ -47,7 +47,7 @@ export const STATUS_LABEL: Record<string, string> = {
   rejected: "Rejected", pending: "Pending", skipped: "Skipped", signed: "Signed", completed: "Completed",
   ready_for_review: "Ready for review", investigating: "Investigating", submitted: "Submitted", paid: "Paid",
   void: "Void", complete: "Complete", terminated: "Terminated", pass: "Pass", fail: "Fail", na: "N/A",
-  low: "Low", medium: "Medium", high: "High", scheduled: "Scheduled", minutes_published: "Minutes published",
+  low: "Low", medium: "Medium", high: "High", scheduled: "Scheduled", minutes_published: "Minutes published", invited: "Invited", declined: "Declined", awarded: "Awarded",
 };
 
 export const label = (v: string | null | undefined) => (v ? STATUS_LABEL[v] ?? v.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "—");

@@ -9,9 +9,13 @@ import { requestScope } from "./lib/context.js";
 import { HttpError } from "./lib/errors.js";
 import { sha256 } from "./lib/security.js";
 import type { Mailer, Notifier } from "./lib/notify.js";
+import type { OidcConfig } from "./routes/oidc.js";
+import { oidcRoutes } from "./routes/oidc.js";
 import type { Storage } from "./lib/storage.js";
 import { accountRoutes } from "./routes/account.js";
 import { authRoutes } from "./routes/auth.js";
+import { biddingRoutes } from "./routes/bidding.js";
+import { bimRoutes } from "./routes/bim.js";
 import { collabRoutes } from "./routes/collab.js";
 import { documentRoutes } from "./routes/documents.js";
 import { fieldRoutes } from "./routes/field.js";
@@ -36,6 +40,8 @@ export interface AppConfig {
   mailer?: Mailer;
   /** Public URL of this server (e.g. https://build.example.com), used in emailed links. */
   baseUrl?: string;
+  /** Optional OpenID Connect single sign-on. */
+  oidc?: OidcConfig;
   /** Absolute path to the built web client, served at / when present. */
   webDist?: string;
   logger?: boolean;
@@ -88,7 +94,7 @@ export async function buildApp(config: AppConfig) {
     if (!req.url.startsWith("/api/")) return;
     const bearer = /^Bearer (ob_[\w-]+)$/.exec(req.headers.authorization ?? "")?.[1];
     // Cookie-authenticated writes must prove same-origin script (CSRF). API keys and tool links carry no cookie.
-    const tokenAuthenticated = !!bearer || req.url.startsWith("/api/tool/");
+    const tokenAuthenticated = !!bearer || req.url.startsWith("/api/tool/") || req.url.startsWith("/api/bids/");
     if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !req.headers[CSRF_HEADER] && !tokenAuthenticated) {
       return reply.code(403).send({ error: "Missing CSRF header" });
     }
@@ -157,6 +163,9 @@ export async function buildApp(config: AppConfig) {
   await app.register(collabRoutes(config), { prefix: "/api" });
   await app.register(scheduleRoutes(config), { prefix: "/api" });
   await app.register(meetingRoutes(config), { prefix: "/api" });
+  await app.register(biddingRoutes(config), { prefix: "/api" });
+  await app.register(bimRoutes(config), { prefix: "/api" });
+  await app.register(oidcRoutes(config), { prefix: "/api" });
 
   if (config.webDist && existsSync(config.webDist)) {
     await app.register(fastifyStatic, { root: config.webDist, wildcard: false });

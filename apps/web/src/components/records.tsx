@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from "react";
-import { api, fmtBytes, fmtDateTime, label, upload } from "../api";
+import { api, fmtBytes, fmtDateTime, label } from "../api";
 import { useAction, useApi } from "../hooks";
+import { attachOrQueue } from "../offline";
 import { ActionButton, Badge, Empty, ErrorText, Field } from "./ui";
 
 export interface Member { id: string; name: string; email: string; role: string; org_role?: string; company?: string | null }
@@ -64,12 +65,13 @@ export function Attachments({ entityType, entityId, projectId, files, onChange, 
 }) {
   const input = useRef<HTMLInputElement>(null);
   const { busy, error, run } = useAction();
+  const [queued, setQueued] = useState(0);
   async function add(fileList: FileList | null) {
     if (!fileList?.length) return;
     await run(async () => {
       for (const f of fileList) {
-        const stored = await upload(`/projects/${projectId}/files`, {}, f);
-        await api("POST", "/attachments", { entityType, entityId, fileId: stored.id });
+        const r = await attachOrQueue({ projectId, entityType, entityId }, f);
+        if (r.queued) setQueued((n) => n + 1);
       }
     });
     if (input.current) input.current.value = "";
@@ -94,6 +96,7 @@ export function Attachments({ entityType, entityId, projectId, files, onChange, 
           <input ref={input} type="file" multiple accept={accept} capture={accept?.startsWith("image") ? "environment" : undefined} onChange={(e) => add(e.target.files)} disabled={busy} aria-label={`Add ${title.toLowerCase()}`} />
         </label>
       )}
+      {queued > 0 && <p className="notice" role="status">{queued} photo(s) saved on this device — they upload automatically when you reconnect.</p>}
       <ErrorText error={error} />
     </section>
   );

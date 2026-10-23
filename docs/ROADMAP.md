@@ -12,8 +12,8 @@ migrations work on fresh and existing databases, docs and limitations are update
 | M5 Collaboration & integrations | Complete | `collab.test.ts`, `e2e/collab.spec.ts` |
 | M6 Production readiness | Complete with recorded limitations | `security.test.ts` (route sweep), axe scan, `scripts/load-test.mjs`, `scripts/smoke.mjs`, CI on PGlite + PostgreSQL 16 + Docker Compose |
 
-Test totals (2026-10-22): 71 API tests, 20 Playwright tests, 32 CUA Driver GUI checks, install/recovery drill, load test.
+Test totals (2026-10-22): 76 API tests, 23 Playwright tests, 32 CUA Driver GUI checks, install/recovery drill, load test.
 
 ## Next (not started)
-Bidding; SSO; offline photo upload; PostgreSQL load test;
+SAML; BIM 3D viewer and clash detection; planroom;  PostgreSQL load test;
 multi-instance rate limiting; multiple predecessors and MS Project/P6 import.

@@ -12,6 +12,8 @@ const PUBLIC = [
   "GET /api/invitations/:token", "POST /api/invitations/:token/accept",
   "GET /api/password-resets/:token", "POST /api/password-resets/:token",
   "GET /api/tool/:token/file", "POST /api/tool/:token/markup",
+  "GET /api/bids/:token", "POST /api/bids/:token",
+  "GET /api/auth/oidc/start", "GET /api/auth/oidc/callback",
 ];
 
 let app: App;

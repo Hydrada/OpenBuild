@@ -7,7 +7,9 @@ import { ActivityList } from "./Dashboard";
 import { DrawingsTool, DocumentsTool, SpecsTool } from "./tools/docs";
 import { RfisTool, SubmittalsTool } from "./tools/rfis";
 import { DailyLogsTool, IncidentsTool, InspectionsTool, ObservationsTool, PhotosTool, PunchTool } from "./tools/field";
+import { BiddingTool } from "./tools/bidding";
 import { MeetingsTool, TimesheetsTool } from "./tools/meetings";
+import { ModelsTool } from "./tools/models";
 import { ScheduleTool } from "./tools/schedule";
 import { BudgetTool, ChangeEventsTool, ChangeOrdersTool, ContractsTool, InvoicesTool } from "./tools/financials";
 
@@ -23,6 +25,7 @@ const TOOLS: Tool[] = [
   { id: "activity", label: "Activity", group: "Project", render: (p) => <Activity projectId={p.id} /> },
   { id: "drawings", label: "Drawings", group: "Documents", external: true, render: (p) => <DrawingsTool project={p} /> },
   { id: "documents", label: "Documents", group: "Documents", render: (p) => <DocumentsTool project={p} /> },
+  { id: "models", label: "Models (BIM)", group: "Documents", external: true, render: (p) => <ModelsTool project={p} /> },
   { id: "specs", label: "Specifications", group: "Documents", external: true, render: (p) => <SpecsTool project={p} /> },
   { id: "rfis", label: "RFIs", group: "Documents", external: true, render: (p) => <RfisTool project={p} /> },
   { id: "submittals", label: "Submittals", group: "Documents", external: true, render: (p) => <SubmittalsTool project={p} /> },
@@ -33,6 +36,7 @@ const TOOLS: Tool[] = [
   { id: "incidents", label: "Incidents", group: "Field", render: (p) => <IncidentsTool project={p} /> },
   { id: "photos", label: "Photos", group: "Field", render: (p) => <PhotosTool project={p} /> },
   { id: "timesheets", label: "Timesheets", group: "Field", external: true, render: (p) => <TimesheetsTool project={p} /> },
+  { id: "bidding", label: "Bidding", group: "Financials", render: (p) => <BiddingTool project={p} /> },
   { id: "budget", label: "Budget", group: "Financials", render: (p) => <BudgetTool project={p} /> },
   { id: "contracts", label: "Contracts", group: "Financials", render: (p) => <ContractsTool project={p} /> },
   { id: "change-events", label: "Change events", group: "Financials", render: (p) => <ChangeEventsTool project={p} /> },

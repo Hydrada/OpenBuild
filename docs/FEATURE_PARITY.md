@@ -21,20 +21,21 @@ Sources:
 | Docs | Submittals | **Done** | Types, spec link, ordered reviewers, approve / as noted / revise & resubmit / reject, revisions |
 | Docs | Markup / PDF editing | **Via adapters** | Scoped links for OpenDraft and the Acrobat alternative; markups stored per revision |
 | Core | Meetings | **Done** | Agenda, attendees, minutes, action items with owners and due dates, publish + notify |
-| Docs | Models (BIM) | Not built | |
+| Docs | Models (BIM) | **Done (register)** | IFC versions per model with schema and element counts/changes; no in-browser 3D viewer or clash detection |
 | Field | Daily log | **Done** | Weather, temps, work, delays, visitors, manpower (decimal hours), photos, sign-off lock |
 | Field | Inspections | **Done** | Templates, pass/fail/N-A, failed item → punch item, completion rule |
 | Field | Punch list | **Done** | Assign, ready-for-review → verify with photo, CSV import |
 | Field | Observations, incidents | **Done** | Severity, assignee, resolution; OSHA recordable/lost time, investigation, corrective action required to close |
 | Field | Photos | **Done** | Library, camera capture on mobile, attach to records |
-| Field | Offline capture | **Done** | Creates (replay-safe `clientId`) plus queued edits to daily logs, inspection results and punch status; no offline photo upload |
+| Field | Offline capture | **Done** | Creates (replay-safe `clientId`), queued edits to daily logs, inspection results and punch status, and photos held in IndexedDB until reconnect |
 | Field | Timesheets | **Done (basic)** | Self-logged hours by cost code (incl. subcontractors), 24 h/day guard, manager approval, no self-approval; no payroll export |
 | Financials | Budget, cost codes | **Done** | CSV import, lock, transfers, revised/committed/pending/exposure/cost-to-date/EAC/over-under, CSV export |
 | Financials | Prime contracts, commitments | **Done** | Prime, subcontracts, POs, schedule of values, retainage |
 | Financials | Change events, change orders | **Done** | Estimates, exposure, approval routing, deductive COs, void |
 | Financials | Invoices / pay applications | **Done** | AIA G702/G703-style math, retainage, previous certificates, over-billing guard, G703 CSV |
 | Financials | Forecasting | **Basic** | Forecast-to-complete per cost code drives EAC |
-| Preconstruction | Bidding, Planroom | Not built | |
+| Preconstruction | Bidding | **Done** | Bid packages, private bidder links (no account), revisions until due, leveling vs low bid, award → draft subcontract |
+| Preconstruction | Planroom, bidder directory | Not built | |
 | Collab | Comments, mentions, notifications | **Done** | In-app + optional email |
 | Collab | Subcontractor portal | **Done** | Restricted role + "My work" |
 | Admin | Custom fields | **Done** | Project, RFI, submittal, punch, observation, task |
@@ -42,7 +43,7 @@ Sources:
 | Admin | API keys, REST API | **Done** | See API.md |
 | Admin | Import/export, backups | **Done** | CSV, backup/restore CLI |
 | Admin | MFA | **Done** | TOTP authenticator apps (RFC 6238) |
-| Admin | SSO (SAML/OIDC) | Not built | |
+| Admin | SSO | **Done (OIDC)** | OpenID Connect with PKCE, nonce/state, RS256 signature + issuer/audience checks; invited users only; no SAML |
 
 ## Existing open-source options reviewed
 Construction-specific open-source suites are scarce; mature options are general-purpose (OpenProject, Redmine, ERPNext, Odoo Community).

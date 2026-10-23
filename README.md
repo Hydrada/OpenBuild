@@ -8,11 +8,11 @@ not at feature parity (see the [sourced feature matrix](docs/FEATURE_PARITY.md))
 
 ## What it does
 - **Project management:** companies, projects, roles (owner/admin/member; manager/contributor/viewer/subcontractor), invitations, tasks, schedule and milestones, meetings, dashboard, activity.
-- **Documents:** drawing sheets and revisions with an inline viewer and markup sets, document versions with approval routing, specifications, RFIs, submittals.
+- **Documents:** drawing sheets and revisions with an inline viewer and markup sets, document versions with approval routing, specifications, RFIs, submittals, BIM model register.
 - **Field:** daily logs with manpower, template inspections, punch list with photo-verified close-out, safety observations, incident reports, photo library, timesheets, offline capture.
-- **Financials:** cost codes, budget with transfers and estimate-at-completion, contracts, change events and orders, AIA-style pay applications with retainage.
+- **Financials:** cost codes, budget with transfers and estimate-at-completion, contracts, change events and orders, AIA-style pay applications with retainage, bidding with a bidder portal.
 - **Collaboration:** comments and @mentions, notifications (in-app and email), approvals inbox, subcontractor portal.
-- **Administration:** audit log, custom fields, CSV import/export, API keys, backup/restore, two-factor login, password resets and session control.
+- **Administration:** audit log, custom fields, CSV import/export, API keys, backup/restore, single sign-on (OIDC), two-factor login, password resets and session control.
 
 ## Run it
 Requires Node.js 22+.
@@ -27,8 +27,8 @@ Shared server: `docker compose up -d --build` (PostgreSQL 16). See [DEPLOYMENT.m
 
 ## Tests
 ```sh
-npm test               # 71 API tests incl. golden financial math and an authorization sweep over every route
-npm run test:e2e       # 20 Playwright browser tests incl. offline sync and an axe accessibility scan
+npm test               # 76 API tests incl. golden financial math and an authorization sweep over every route
+npm run test:e2e       # 23 Playwright browser tests incl. offline sync and an axe accessibility scan
 node scripts/smoke.mjs # install → hard kill → restart → backup → restore drill
 node scripts/load-test.mjs http://127.0.0.1:3000
 node e2e/cua/gui-full.mjs http://127.0.0.1:3200 run docs/evidence/gui-full  # real GUI via CUA Driver (then: after-restart)

@@ -6,7 +6,7 @@ import { isUuid, requireProject, type ProjectAccess, type ProjectAction } from "
 const PROJECT_TABLES = new Set([
   "tasks", "drawings", "folders", "documents", "spec_sections", "rfis", "submittals", "files",
   "daily_logs", "inspections", "punch_items", "observations", "incidents",
-  "cost_codes", "contracts", "change_events", "change_orders", "invoices", "budget_lines", "schedule_items", "meetings", "timesheet_entries",
+  "cost_codes", "contracts", "change_events", "change_orders", "invoices", "budget_lines", "schedule_items", "meetings", "timesheet_entries", "bid_packages", "bim_models", "bid_packages",
 ]);
 
 /** Loads a project-scoped row and checks the caller may perform `action` on its project. 404s hide other orgs' ids. */
@@ -32,7 +32,7 @@ export async function loadInProject<T extends { project_id: string }>(
 }
 
 /** Next per-project sequence number. Locks the project row so concurrent creators cannot collide. */
-export async function nextNumber(q: Queryable, table: "rfis" | "submittals" | "punch_items" | "change_events" | "change_orders" | "contracts" | "invoices", projectId: string): Promise<number> {
+export async function nextNumber(q: Queryable, table: "rfis" | "submittals" | "punch_items" | "change_events" | "change_orders" | "contracts" | "invoices" | "bid_packages", projectId: string): Promise<number> {
   await q.query("SELECT id FROM projects WHERE id = $1 FOR UPDATE", [projectId]);
   const [r] = await q.query<{ n: number }>(`SELECT coalesce(max(number), 0)::int + 1 AS n FROM ${table} WHERE project_id = $1`, [projectId]);
   return r!.n;

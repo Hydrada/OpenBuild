@@ -166,3 +166,18 @@ test("offline edits: inspection results and punch status replay on reconnect", a
   await ownerCtx.setOffline(false);
   await expect.poll(async () => (await api(owner).get(`/punch-items/${punch.id}`)).status, { timeout: 15_000 }).toBe("ready_for_review");
 });
+
+test("offline photo is kept on the device and attached on reconnect", async ({ browser }) => {
+  const w = await world(browser);
+  const { owner, ownerCtx } = w;
+  const punch = await api(owner).post(`/projects/${w.projectId}/punch-items`, { title: "Cracked tile at lobby" });
+  await owner.goto(`/punch/${punch.id}`);
+  await expect(owner.getByRole("heading", { name: /Cracked tile/ })).toBeVisible();
+  await ownerCtx.setOffline(true);
+  await owner.getByLabel("Add photos").setInputFiles(jpeg("cracked-tile"));
+  await expect(owner.getByText(/1 photo\(s\) saved on this device/)).toBeVisible();
+  await expect(owner.getByRole("link", { name: /Offline · 1 queued/ })).toBeVisible();
+  await ownerCtx.setOffline(false);
+  await expect.poll(async () => (await api(owner).get(`/punch-items/${punch.id}`)).photos.map((p: { name: string }) => p.name), { timeout: 15_000 }).toEqual(["cracked-tile.jpg"]);
+  await expect(owner.getByRole("link", { name: "cracked-tile.jpg" })).toBeVisible();
+});

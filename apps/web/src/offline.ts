@@ -79,6 +79,9 @@ export async function syncOutbox(): Promise<{ sent: number; failed: number }> {
   } finally {
     syncing = false;
   }
+  // Photos go after records so the items they attach to exist.
+  try { if (navigator.onLine) sent += await syncPhotos(); } catch { /* IndexedDB unavailable */ }
+  listeners.forEach((l) => l());
   // Let open screens refetch so synced records appear without a manual reload.
   if (sent) dispatchEvent(new Event("openbuild:synced"));
   return { sent, failed };
@@ -90,9 +93,11 @@ export function discard(clientId: string) {
 
 export function useOutbox() {
   const [items, setItems] = useState(read);
+  const [photos, setPhotos] = useState(0);
   const [online, setOnline] = useState(navigator.onLine);
   useEffect(() => {
-    const update = () => setItems(read());
+    const update = () => { setItems(read()); pendingPhotos().then((p) => setPhotos(p.length), () => {}); };
+    update();
     const on = () => { setOnline(true); void syncOutbox(); };
     const off = () => setOnline(false);
     listeners.add(update);
@@ -102,5 +107,67 @@ export function useOutbox() {
     void syncOutbox();
     return () => { listeners.delete(update); removeEventListener("online", on); removeEventListener("offline", off); removeEventListener("storage", update); };
   }, []);
-  return { items, online };
+  return { items, online, photos };
+}
+
+// ---------- Offline photos ----------
+// Files are too large for localStorage, so queued uploads live in IndexedDB: { id, projectId, entityType, entityId, file }.
+
+interface PendingPhoto { id: string; projectId: string; entityType: string; entityId: string; name: string; type: string; blob: Blob; queuedAt: string }
+
+function photoDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("openbuild-offline", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("photos", { keyPath: "id" });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function photoStore<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  const db = await photoDb();
+  return new Promise((resolve, reject) => {
+    const req = fn(db.transaction("photos", mode).objectStore("photos"));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+export const pendingPhotos = () => photoStore<PendingPhoto[]>("readonly", (s) => s.getAll() as IDBRequest<PendingPhoto[]>);
+
+async function uploadAndAttach(p: { projectId: string; entityType: string; entityId: string }, file: Blob, name: string) {
+  const fd = new FormData();
+  fd.append("file", file, name);
+  const res = await fetch(`/api/projects/${p.projectId}/files`, { method: "POST", credentials: "same-origin", headers: { "x-openbuild-csrf": "1" }, body: fd });
+  if (!res.ok) throw new ApiError(res.status, (await res.json().catch(() => null))?.error ?? res.statusText);
+  const stored = await res.json();
+  await api("POST", "/attachments", { entityType: p.entityType, entityId: p.entityId, fileId: stored.id });
+}
+
+/** Uploads and attaches now, or keeps the photo on the device until the connection returns. */
+export async function attachOrQueue(target: { projectId: string; entityType: string; entityId: string }, file: File): Promise<{ queued: boolean }> {
+  if (navigator.onLine) {
+    try {
+      await uploadAndAttach(target, file, file.name);
+      return { queued: false };
+    } catch (e) {
+      if (!isNetworkError(e)) throw e;
+    }
+  }
+  await photoStore("readwrite", (s) => s.put({ id: crypto.randomUUID(), ...target, name: file.name, type: file.type, blob: file, queuedAt: new Date().toISOString() }));
+  listeners.forEach((l) => l());
+  return { queued: true };
+}
+
+async function syncPhotos(): Promise<number> {
+  let sent = 0;
+  for (const p of await pendingPhotos()) {
+    try {
+      await uploadAndAttach(p, p.blob, p.name);
+    } catch (e) {
+      if (isNetworkError(e)) break;
+      // Rejected (e.g. no longer permitted): drop it rather than retry forever.
+    }
+    await photoStore("readwrite", (s) => s.delete(p.id));
+    sent++;
+  }
+  return sent;
 }

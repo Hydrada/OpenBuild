@@ -13,7 +13,9 @@ import { TeamPage } from "./pages/Team";
 import { DocumentPage, DrawingPage } from "./pages/tools/docs";
 import { DailyLogPage, IncidentPage, InspectionPage, ObservationPage, PunchPage } from "./pages/tools/field";
 import { ChangeEventPage, ChangeOrderPage, ContractPage, InvoicePage } from "./pages/tools/financials";
+import { BidPackagePage, BidPage } from "./pages/tools/bidding";
 import { MeetingPage } from "./pages/tools/meetings";
+import { ModelPage } from "./pages/tools/models";
 import { RfiPage, SubmittalPage } from "./pages/tools/rfis";
 import { match, navigate, usePath } from "./router";
 
@@ -35,15 +37,19 @@ const DETAIL: [string, (id: string) => JSX.Element][] = [
   ["change-orders", (id) => <ChangeOrderPage id={id} />],
   ["invoices", (id) => <InvoicePage id={id} />],
   ["meetings", (id) => <MeetingPage id={id} />],
+  ["bid-packages", (id) => <BidPackagePage id={id} />],
+  ["models", (id) => <ModelPage id={id} />],
 ];
 
 export function App() {
   const path = usePath();
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [allowSignup, setAllowSignup] = useState(false);
+  const [sso, setSso] = useState<{ name: string } | null>(null);
   const [orgId, setOrgId] = useState<string | null>(localStorage.getItem(ORG_KEY));
   const [unread, setUnread] = useState(0);
-  const { items: outbox, online } = useOutbox();
+  const { items: outbox, online, photos } = useOutbox();
+  const waiting = outbox.length + photos;
 
   const loadMe = useCallback(async () => {
     try {
@@ -51,7 +57,7 @@ export function App() {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         setMe(null);
-        api("GET", "/auth/config").then((c) => setAllowSignup(c.allowSignup), () => {});
+        api("GET", "/auth/config").then((c) => { setAllowSignup(c.allowSignup); setSso(c.sso); }, () => {});
       } else {
         throw e;
       }
@@ -77,9 +83,11 @@ export function App() {
   const invite = match("/invite/:token", path);
   const reset = match("/reset/:token", path);
   if (reset) return <ResetPasswordPage token={reset.token!} />;
+  const bid = match("/bid/:token", path);
+  if (bid) return <BidPage token={bid.token!} />;
   if (me === undefined) return <p className="muted pad">Loading…</p>;
   if (invite) return <InvitePage token={invite.token!} me={me} onJoined={loadMe} />;
-  if (!me) return <AuthPage allowSignup={allowSignup} onAuthed={loadMe} />;
+  if (!me) return <AuthPage allowSignup={allowSignup} sso={sso} onAuthed={loadMe} />;
 
   const org = me.orgs.find((o) => o.id === orgId) ?? me.orgs[0];
   if (!org) return <p className="pad">Your account is not a member of any organization.</p>;
@@ -139,8 +147,8 @@ export function App() {
             Notifications{unread > 0 && <span className="count" aria-label={`${unread} unread`}>{unread}</span>}
           </Link>
         </nav>
-        {(!online || outbox.length > 0) && (
-          <Link to="/my-work" className="sync-status">{online ? `${outbox.length} waiting to sync` : `Offline${outbox.length ? ` · ${outbox.length} queued` : ""}`}</Link>
+        {(!online || waiting > 0) && (
+          <Link to="/my-work" className="sync-status">{online ? `${waiting} waiting to sync` : `Offline${waiting ? ` · ${waiting} queued` : ""}`}</Link>
         )}
         <div className="sidebar-foot">
           <Link to="/account" className="small">{me.user.name}</Link>

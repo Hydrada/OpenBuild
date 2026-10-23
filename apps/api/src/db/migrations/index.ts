@@ -731,4 +731,76 @@ ALTER TABLE users ADD COLUMN totp_enabled boolean NOT NULL DEFAULT false;
 ALTER TABLE users ADD COLUMN mfa_recovery_hashes text[] NOT NULL DEFAULT '{}';
 `,
   },
+  {
+    id: "0010_bidding",
+    sql: /* sql */ `
+CREATE TABLE bid_packages (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  number       int NOT NULL,
+  title        text NOT NULL,
+  scope        text,
+  cost_code_id uuid REFERENCES cost_codes(id) ON DELETE SET NULL,
+  due_at       timestamptz NOT NULL,
+  status       text NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed','awarded')),
+  awarded_bidder_id uuid,
+  contract_id  uuid REFERENCES contracts(id) ON DELETE SET NULL,
+  created_by   uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, number)
+);
+
+CREATE TABLE bidders (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  package_id   uuid NOT NULL REFERENCES bid_packages(id) ON DELETE CASCADE,
+  company      text NOT NULL,
+  email        text NOT NULL,
+  token_hash   text NOT NULL UNIQUE,
+  status       text NOT NULL DEFAULT 'invited' CHECK (status IN ('invited','declined','submitted')),
+  amount       numeric(18,2),
+  notes        text,
+  submitted_at timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+`,
+  },
+  {
+    id: "0011_oidc",
+    sql: /* sql */ `
+CREATE TABLE oidc_states (
+  state_hash    text PRIMARY KEY,
+  nonce         text NOT NULL,
+  code_verifier text NOT NULL,
+  return_to     text NOT NULL DEFAULT '/',
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  expires_at    timestamptz NOT NULL
+);
+`,
+  },
+  {
+    id: "0012_bim",
+    sql: /* sql */ `
+CREATE TABLE bim_models (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  discipline  text NOT NULL DEFAULT 'Architectural',
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, name)
+);
+
+CREATE TABLE bim_model_versions (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  model_id    uuid NOT NULL REFERENCES bim_models(id) ON DELETE CASCADE,
+  version     int NOT NULL,
+  file_id     uuid NOT NULL REFERENCES files(id),
+  ifc_schema  text,
+  element_counts jsonb NOT NULL DEFAULT '{}'::jsonb,
+  note        text,
+  uploaded_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (model_id, version)
+);
+`,
+  },
 ];
