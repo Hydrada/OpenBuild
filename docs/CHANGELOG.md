@@ -11,8 +11,8 @@
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
 - Working calendar per project (weekdays and holidays) used by the critical path.
-- Resources with daily capacity and resource levelling, with optional activity splitting.
-- Models: IFC register with version deltas, in-browser 3D viewer and exact-geometry clash detection between models.
+- Resources with daily capacity and resource levelling, with optional activity splitting; an activity can need several resources at once.
+- Models: IFC register with version deltas, in-browser 3D viewer and exact-geometry clash detection between models, including clearance (soft) clashes.
 - Single sign-on: OpenID Connect and SAML 2.0.
 - Offline: photos queue on the device.
 - Storage: S3-compatible driver (AWS S3, MinIO, R2, Backblaze).

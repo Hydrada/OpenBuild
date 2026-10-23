@@ -8,7 +8,7 @@ import type { ProjectInfo } from "../Project";
 interface Item {
   id: string; name: string; start_date: string; end_date: string; is_milestone: boolean; percent_complete: number;
   predecessor_id: string | null; predecessor_name: string | null; predecessors: { id: string; name: string; lagDays: number; type: string }[]; assignee_id: string | null; assignee_name: string | null;
-  resource_id: string | null; resource_units: number; resource_name: string | null; splittable: boolean; segments: [string, string][] | null;
+  resources: { id: string; name: string; units: number }[]; splittable: boolean; segments: [string, string][] | null;
   late: boolean; dependency_conflict: boolean; early_start: string; early_finish: string; total_float: number; critical: boolean;
 }
 
@@ -23,6 +23,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
   const items = list.data;
   const resources = useApi<any[]>(`/projects/${project.id}/resources`);
   const predOptions = (items ?? []).map((i) => ({ value: i.id, label: i.name }));
+  const resOptions = (resources.data ?? []).map((r) => ({ value: r.id, label: `${r.name} (capacity ${r.capacity})` }));
 
   const fields = (excludeId?: string) => [
     { name: "name", label: "Activity", required: true, full: true },
@@ -34,8 +35,10 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
       { value: "FS", label: "Finish → start (FS)" }, { value: "SS", label: "Start → start (SS)" },
       { value: "FF", label: "Finish → finish (FF)" }, { value: "SF", label: "Start → finish (SF)" }] },
     { name: "lagDays", label: "Lag (days)", type: "number" as const, step: "1" },
-    { name: "resourceId", label: "Resource (crew / equipment)", type: "select" as const, options: (resources.data ?? []).map((r) => ({ value: r.id, label: `${r.name} (capacity ${r.capacity})` })) },
+    { name: "resourceId", label: "Resource (crew / equipment)", type: "select" as const, options: resOptions },
     { name: "resourceUnits", label: "Units used", type: "number" as const, min: "1" },
+    { name: "resource2Id", label: "Second resource (optional)", type: "select" as const, options: resOptions },
+    { name: "resource2Units", label: "Second resource units", type: "number" as const, min: "1" },
     { name: "splittable", label: "May be split when levelling", type: "checkbox" as const },
     { name: "assigneeId", label: "Responsible", type: "select" as const, options },
     { name: "isMilestone", label: "Milestone", type: "checkbox" as const },
@@ -43,7 +46,8 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
   const body = (v: Record<string, any>) => ({
     name: v.name, startDate: v.startDate, endDate: v.endDate || undefined, isMilestone: !!v.isMilestone,
     percentComplete: v.percentComplete === "" ? 0 : Number(v.percentComplete), predecessors: (v.predecessorIds as string[]).map((id) => ({ id, type: v.linkType || "FS", lagDays: Number(v.lagDays) || 0 })), assigneeId: v.assigneeId || null,
-    resourceId: v.resourceId || null, resourceUnits: Number(v.resourceUnits) || 1, splittable: !!v.splittable,
+    resources: [[v.resourceId, v.resourceUnits], [v.resource2Id, v.resource2Units]].filter(([id], k, all) => id && all.findIndex(([x]) => x === id) === k).map(([id, u]) => ({ id, units: Number(u) || 1 })),
+    splittable: !!v.splittable,
   });
 
   let chart = null;
@@ -122,7 +126,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                   {items.map((i) => editing === i.id ? (
                     <tr key={i.id}><td colSpan={writable ? 10 : 9}>
                       <Form ariaLabel={`Edit ${i.name}`} submitLabel="Save" className="flat" onCancel={() => setEditing(null)} fields={fields(i.id)}
-                        initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorIds: i.predecessors.map((p) => p.id), linkType: i.predecessors[0]?.type ?? "FS", lagDays: String(i.predecessors[0]?.lagDays ?? 0), resourceId: i.resource_id ?? "", resourceUnits: String(i.resource_units), splittable: i.splittable, assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
+                        initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorIds: i.predecessors.map((p) => p.id), linkType: i.predecessors[0]?.type ?? "FS", lagDays: String(i.predecessors[0]?.lagDays ?? 0), resourceId: i.resources[0]?.id ?? "", resourceUnits: String(i.resources[0]?.units ?? 1), resource2Id: i.resources[1]?.id ?? "", resource2Units: String(i.resources[1]?.units ?? 1), splittable: i.splittable, assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
                         onSubmit={async (v) => { await api("PATCH", `/schedule/${i.id}`, body(v)); setEditing(null); list.reload(); }} />
                     </td></tr>
                   ) : (
@@ -134,7 +138,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                       <td>{fmtDate(i.early_start)}</td>
                       <td>{i.total_float}</td>
                       <td>{i.predecessors.length ? i.predecessors.map((p) => `${p.name} (${p.type}${p.lagDays ? ` ${p.lagDays > 0 ? "+" : ""}${p.lagDays}d` : ""})`).join(", ") : "—"}</td>
-                      <td>{i.assignee_name ?? "—"}{i.resource_name && <div className="muted small">{i.resource_name} × {i.resource_units}</div>}</td>
+                      <td>{i.assignee_name ?? "—"}{i.resources.length > 0 && <div className="muted small">{i.resources.map((r) => `${r.name} × ${r.units}`).join(", ")}</div>}</td>
                       <td>
                         {i.critical && <span className="badge badge-high" title="Zero float: any delay moves the project finish">Critical</span>}{" "}
                         {i.late && <span className="badge badge-rejected">Late</span>}{" "}

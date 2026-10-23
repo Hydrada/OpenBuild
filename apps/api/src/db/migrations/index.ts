@@ -907,4 +907,20 @@ ALTER TABLE schedule_items ADD COLUMN splittable boolean NOT NULL DEFAULT false;
 ALTER TABLE schedule_items ADD COLUMN segments jsonb;
 `,
   },
+  {
+    id: "0019_assignments",
+    sql: /* sql */ `
+-- Several resources per activity (e.g. a concrete crew plus a pump), each with its own units.
+CREATE TABLE schedule_assignments (
+  item_id     uuid NOT NULL REFERENCES schedule_items(id) ON DELETE CASCADE,
+  resource_id uuid NOT NULL REFERENCES schedule_resources(id) ON DELETE CASCADE,
+  units       int NOT NULL DEFAULT 1 CHECK (units BETWEEN 1 AND 10000),
+  PRIMARY KEY (item_id, resource_id)
+);
+INSERT INTO schedule_assignments (item_id, resource_id, units)
+  SELECT id, resource_id, resource_units FROM schedule_items WHERE resource_id IS NOT NULL;
+ALTER TABLE schedule_items DROP COLUMN resource_id;
+ALTER TABLE schedule_items DROP COLUMN resource_units;
+`,
+  },
 ];

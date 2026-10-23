@@ -15,5 +15,5 @@ migrations work on fresh and existing databases, docs and limitations are update
 Test totals (2026-10-22): 93 API tests, 28 Playwright tests, 36 CUA Driver GUI checks, install/recovery drill, load test.
 
 ## Next (not started)
-soft/clearance clash rules;  PostgreSQL load test;
+PostgreSQL load test;
 multi-instance rate limiting; multiple resources per activity.

@@ -72,3 +72,72 @@ function centroid(tris: Tri[]): number[] {
   for (const t of tris) for (let i = 0; i < 9; i++) c[i % 3]! += t[i]!;
   return c.map((x) => x / (tris.length * 3));
 }
+
+// ---------- Distance (soft / clearance clashes) ----------
+
+const len3 = (a: number[]) => Math.hypot(a[0]!, a[1]!, a[2]!);
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+const lerp = (a: number[], d: number[], s: number) => [a[0]! + d[0]! * s, a[1]! + d[1]! * s, a[2]! + d[2]! * s];
+
+/** Closest distance from point p to triangle t (Ericson, Real-Time Collision Detection 5.1.5). */
+export function pointTriangleDistance(p: number[], t: Tri): number {
+  const a = v(t, 0), b = v(t, 1), c = v(t, 2);
+  const ab = sub(b, a), ac = sub(c, a), ap = sub(p, a);
+  const d1 = dot(ab, ap), d2 = dot(ac, ap);
+  if (d1 <= 0 && d2 <= 0) return len3(ap);
+  const bp = sub(p, b), d3 = dot(ab, bp), d4 = dot(ac, bp);
+  if (d3 >= 0 && d4 <= d3) return len3(bp);
+  const vc = d1 * d4 - d3 * d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) return len3(sub(p, lerp(a, ab, d1 / (d1 - d3))));
+  const cp = sub(p, c), d5 = dot(ab, cp), d6 = dot(ac, cp);
+  if (d6 >= 0 && d5 <= d6) return len3(cp);
+  const vb = d5 * d2 - d1 * d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) return len3(sub(p, lerp(a, ac, d2 / (d2 - d6))));
+  const va = d3 * d6 - d5 * d4;
+  if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) return len3(sub(p, lerp(b, sub(c, b), (d4 - d3) / (d4 - d3 + (d5 - d6)))));
+  const denom = 1 / (va + vb + vc), sv = vb * denom, sw = vc * denom;
+  return len3(sub(p, [a[0]! + ab[0]! * sv + ac[0]! * sw, a[1]! + ab[1]! * sv + ac[1]! * sw, a[2]! + ab[2]! * sv + ac[2]! * sw]));
+}
+
+/** Closest distance between segments p1-q1 and p2-q2 (Ericson 5.1.9). */
+export function segmentDistance(p1: number[], q1: number[], p2: number[], q2: number[]): number {
+  const d1 = sub(q1, p1), d2 = sub(q2, p2), r = sub(p1, p2);
+  const a = dot(d1, d1), e = dot(d2, d2), f = dot(d2, r);
+  let s: number, t: number;
+  if (a <= 1e-12 && e <= 1e-12) return len3(r);
+  if (a <= 1e-12) { s = 0; t = clamp01(f / e); }
+  else {
+    const c = dot(d1, r);
+    if (e <= 1e-12) { t = 0; s = clamp01(-c / a); }
+    else {
+      const b = dot(d1, d2), den = a * e - b * b;
+      s = den !== 0 ? clamp01((b * f - c * e) / den) : 0;
+      t = (b * s + f) / e;
+      if (t < 0) { t = 0; s = clamp01(-c / a); } else if (t > 1) { t = 1; s = clamp01((b - c) / a); }
+    }
+  }
+  return len3(sub(lerp(p1, d1, s), lerp(p2, d2, t)));
+}
+
+/** Minimum distance between two non-intersecting triangles: vertex-face both ways plus all edge-edge pairs. */
+export function triangleDistance(t1: Tri, t2: Tri): number {
+  let d = Infinity;
+  for (let i = 0; i < 3; i++) d = Math.min(d, pointTriangleDistance(v(t1, i), t2), pointTriangleDistance(v(t2, i), t1));
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) d = Math.min(d, segmentDistance(v(t1, i), v(t1, (i + 1) % 3), v(t2, j), v(t2, (j + 1) % 3)));
+  return d;
+}
+
+/** Minimum surface distance between two meshes, considering only triangles that reach into `box`. */
+export function meshDistance(a: Tri[], b: Tri[], box: { min: number[]; max: number[] }): number {
+  const near = (t: Tri) => {
+    for (let k = 0; k < 3; k++) {
+      const lo = Math.min(t[k]!, t[k + 3]!, t[k + 6]!), hi = Math.max(t[k]!, t[k + 3]!, t[k + 6]!);
+      if (hi < box.min[k]! || lo > box.max[k]!) return false;
+    }
+    return true;
+  };
+  const ta = a.filter(near), tb = b.filter(near);
+  let d = Infinity;
+  for (const x of ta) for (const y of tb) d = Math.min(d, triangleDistance(x, y));
+  return d;
+}

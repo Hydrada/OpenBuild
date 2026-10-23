@@ -55,17 +55,19 @@ function ClashRunner({ projectId, models }: { projectId: string; models: any[] }
   return (
     <section className="card" aria-label="Clash detection">
       <h2>Clash detection</h2>
-      <Form ariaLabel="Run clash detection" submitLabel="Run clash detection" className="flat" initial={{ toleranceMm: "10" }}
+      <Form ariaLabel="Run clash detection" submitLabel="Run clash detection" className="flat" initial={{ toleranceMm: "10", clearanceMm: "0" }}
         fields={[
           { name: "modelAId", label: "Model A", type: "select", required: true, options },
           { name: "modelBId", label: "Model B", type: "select", required: true, options },
-          { name: "toleranceMm", label: "Tolerance (mm)", type: "number", min: "0", step: "1" },
+          { name: "toleranceMm", label: "Hard-clash tolerance (mm)", type: "number", min: "0", step: "1" },
+          { name: "clearanceMm", label: "Required clearance (mm, 0 = hard clashes only)", type: "number", min: "0", step: "1" },
         ]}
-        onSubmit={async (v) => { await api("POST", `/projects/${projectId}/clashes`, { modelAId: v.modelAId, modelBId: v.modelBId, toleranceMm: Number(v.toleranceMm) || 0 }); runs.reload(); }} />
+        onSubmit={async (v) => { await api("POST", `/projects/${projectId}/clashes`, { modelAId: v.modelAId, modelBId: v.modelBId, toleranceMm: Number(v.toleranceMm) || 0, clearanceMm: Number(v.clearanceMm) || 0 }); runs.reload(); }} />
       {runs.data?.map((r) => (
         <details key={r.id} open={r === runs.data![0]}>
           <summary><strong>{r.model_a} × {r.model_b}</strong> — {r.clash_count} clash(es) <span className="muted small">· {r.run_by} · {fmtDateTime(r.created_at)} · tolerance {Number(r.tolerance_m) * 1000} mm</span></summary>
           <DataTable rows={r.results.map((c: any, i: number) => ({ ...c, id: String(i) }))} empty="No clashes." caption="Clashes" columns={[
+            { label: "Type", render: (c: any) => c.kind === "clearance" ? <span className="badge badge-pending">Clearance {Math.round(c.distanceM * 1000)} mm</span> : <span className="badge badge-rejected">Hard</span> },
             { label: "Element A", render: (c: any) => `${c.a.name ?? c.a.id} (${c.a.type})` },
             { label: "Element B", render: (c: any) => `${c.b.name ?? c.b.id} (${c.b.type})` },
             { label: "Overlap (m)", render: (c: any) => c.overlapM.join(" × ") },

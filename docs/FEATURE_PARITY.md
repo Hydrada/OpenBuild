@@ -13,7 +13,7 @@ Sources:
 | Core | Company/project directory, permissions | **Done** | Org roles owner/admin/member; project roles manager/contributor/viewer/subcontractor |
 | Core | Portfolio dashboard, project home | **Done** | Status counts, open/overdue tasks, my tasks, activity |
 | Core | Tasks | **Done** | Assign, due date, status, CSV import/export |
-| Core | Schedule & milestones | **Done (basic)** | Activities, milestones, multiple predecessors (FS/SS/FF/SF) with lag, loop prevention, late/conflict flags, critical path with total float, bar chart, dashboard milestones, working calendar (weekdays + holidays), resources with capacity, minimum-float resource levelling with optional activity splitting (preview/apply), Microsoft Project XML import (also from P6/ProjectLibre) |
+| Core | Schedule & milestones | **Done (basic)** | Activities, milestones, multiple predecessors (FS/SS/FF/SF) with lag, loop prevention, late/conflict flags, critical path with total float, bar chart, dashboard milestones, working calendar (weekdays + holidays), resources with capacity (several per activity, e.g. crew plus pump), minimum-float resource levelling with optional activity splitting (preview/apply), Microsoft Project XML import (also from P6/ProjectLibre) |
 | Docs | Drawings | **Done** | Sheets, revisions (current set = latest), sets, issue dates, inline PDF viewer, markup sets |
 | Docs | Documents | **Done** | Folders, versions, sequential approval |
 | Docs | Specifications | **Done** | MasterFormat sections with optional PDF |
@@ -21,7 +21,7 @@ Sources:
 | Docs | Submittals | **Done** | Types, spec link, ordered reviewers, approve / as noted / revise & resubmit / reject, revisions |
 | Docs | Markup / PDF editing | **Via adapters** | Scoped links for OpenDraft and the Acrobat alternative; markups stored per revision |
 | Core | Meetings | **Done** | Agenda, attendees, minutes, action items with owners and due dates, publish + notify |
-| Docs | Models (BIM) | **Done** | IFC versions with element counts/changes, in-browser 3D viewer (web-ifc + three.js), clash detection between models (bounding-box candidates confirmed by exact triangle intersection and containment) with stored runs and red highlighting in 3D |
+| Docs | Models (BIM) | **Done** | IFC versions with element counts/changes, in-browser 3D viewer (web-ifc + three.js), clash detection between models (bounding-box candidates confirmed by exact triangle intersection and containment, plus clearance/soft clashes measured by surface distance) with stored runs and red highlighting in 3D |
 | Field | Daily log | **Done** | Weather, temps, work, delays, visitors, manpower (decimal hours), photos, sign-off lock |
 | Field | Inspections | **Done** | Templates, pass/fail/N-A, failed item → punch item, completion rule |
 | Field | Punch list | **Done** | Assign, ready-for-review → verify with photo, CSV import |

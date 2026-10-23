@@ -63,7 +63,7 @@ export const bimRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
   app.post<P>("/projects/:projectId/clashes", async (req, reply) => {
     const user = requireUser(req);
     const { project } = await requireProject(db, user.id, req.params.projectId, "record.write");
-    const b = z.object({ modelAId: z.uuid(), modelBId: z.uuid(), toleranceMm: z.number().min(0).max(1000).default(10) }).parse(req.body);
+    const b = z.object({ modelAId: z.uuid(), modelBId: z.uuid(), toleranceMm: z.number().min(0).max(1000).default(10), clearanceMm: z.number().min(0).max(5000).default(0) }).parse(req.body);
     if (b.modelAId === b.modelBId) throw new HttpError(400, "Choose two different models");
     const latest = async (modelId: string) => {
       const [v] = await db.query<{ id: string; storage_key: string; name: string; version: number }>(
@@ -77,13 +77,13 @@ export const bimRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
     const [va, vb] = [await latest(b.modelAId), await latest(b.modelBId)];
     let clashes;
     try {
-      clashes = findClashes(await elementBoxes(await readAll(va.storage_key)), await elementBoxes(await readAll(vb.storage_key)), b.toleranceMm / 1000);
+      clashes = findClashes(await elementBoxes(await readAll(va.storage_key)), await elementBoxes(await readAll(vb.storage_key)), b.toleranceMm / 1000, 500, true, b.clearanceMm / 1000);
     } catch (e) {
       throw new HttpError(422, `The model geometry could not be read: ${(e as Error).message}`);
     }
     const results = clashes.map((c) => ({
       a: { id: c.a.globalId, type: c.a.type, name: c.a.name }, b: { id: c.b.globalId, type: c.b.type, name: c.b.name },
-      overlapM: c.overlap, volumeM3: c.volume, exact: c.exact,
+      kind: c.kind, distanceM: c.distance, overlapM: c.overlap, volumeM3: c.volume, exact: c.exact,
     }));
     const [run] = await db.tx(async (q) => {
       const r = await q.query<{ id: string }>(

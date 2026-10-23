@@ -126,7 +126,11 @@ export function criticalPath(items: CpmItem[], links: CpmLink[], calendar?: Work
 }
 
 /** `work_days`: actual working days for an already-split activity (its start/end span includes the gaps). */
-export interface LevelItem extends CpmItem { resource_id: string | null; resource_units: number; splittable?: boolean; work_days?: number }
+export interface Assignment { resource_id: string; units: number }
+/** `assignments`: resources the activity needs every working day. `resource_id`/`resource_units` are the single-resource shorthand. */
+export interface LevelItem extends CpmItem { assignments?: Assignment[]; resource_id?: string | null; resource_units?: number; splittable?: boolean; work_days?: number }
+
+const needs = (i: LevelItem): Assignment[] => i.assignments ?? (i.resource_id ? [{ resource_id: i.resource_id, units: i.resource_units ?? 1 }] : []);
 /** `segments` (splittable activities only): contiguous working-day runs as [start, end] pairs. */
 export interface LevelResult { start_date: string; end_date: string; delay_days: number; segments?: [string, string][] }
 
@@ -145,21 +149,25 @@ export function levelResources(items: LevelItem[], links: CpmLink[], capacity: M
   const W = workIndex(calendar, lo, hi);
   const dur = new Map(items.map((i) => [i.id, i.work_days ? i.work_days - 1 : W.span(i.start_date, i.end_date)]));
   for (const i of items) {
-    if (i.resource_id && i.resource_units > (capacity.get(i.resource_id) ?? 0)) throw new Error(`"${i.id}" needs more units than its resource has`);
+    for (const a of needs(i)) if (a.units > (capacity.get(a.resource_id) ?? 0)) throw new Error(`"${i.id}" needs more units than its resource has`);
   }
   const preds = new Map<string, CpmLink[]>();
   for (const l of valid) preds.set(l.successor_id, [...(preds.get(l.successor_id) ?? []), l]);
   const placed = new Map<string, number>(); // id -> levelled start index
   const usage = new Map<string, Map<number, number>>();
-  const fits = (r: string, cap: number, units: number, s: number, d: number) => {
-    const u = usage.get(r) ?? new Map<number, number>();
-    for (let t = s; t <= s + d; t++) if ((u.get(t) ?? 0) + units > cap) return false;
+  /** Every assigned resource has spare capacity on every day in [s, s+d]. */
+  const fits = (as: Assignment[], s: number, d: number) => as.every((a) => {
+    const u = usage.get(a.resource_id) ?? new Map<number, number>();
+    const cap = capacity.get(a.resource_id)!;
+    for (let t = s; t <= s + d; t++) if ((u.get(t) ?? 0) + a.units > cap) return false;
     return true;
-  };
-  const book = (r: string, units: number, s: number, d: number) => {
-    const u = usage.get(r) ?? new Map<number, number>();
-    for (let t = s; t <= s + d; t++) u.set(t, (u.get(t) ?? 0) + units);
-    usage.set(r, u);
+  });
+  const book = (as: Assignment[], s: number, d: number) => {
+    for (const a of as) {
+      const u = usage.get(a.resource_id) ?? new Map<number, number>();
+      for (let t = s; t <= s + d; t++) u.set(t, (u.get(t) ?? 0) + a.units);
+      usage.set(a.resource_id, u);
+    }
   };
   const result = new Map<string, LevelResult>();
   while (placed.size < items.length) {
@@ -181,15 +189,15 @@ export function levelResources(items: LevelItem[], links: CpmLink[], capacity: M
         default: return pf + 1 + l.lag_days;
       }
     }));
-    if (it.resource_id && it.splittable && d > 0) {
-      // Splittable: take the earliest d+1 working days with spare capacity, not necessarily consecutive.
-      const cap = capacity.get(it.resource_id)!;
+    const as = needs(it);
+    if (as.length && it.splittable && d > 0) {
+      // Splittable: take the earliest d+1 working days where every resource has capacity, not necessarily consecutive.
       const days: number[] = [];
       for (let t = s, guard = 0; days.length < d + 1; t++) {
-        if (fits(it.resource_id, cap, it.resource_units, t, 0)) days.push(t);
+        if (fits(as, t, 0)) days.push(t);
         if (++guard > 20000) throw new Error("Could not level within the scheduling window");
       }
-      for (const t of days) book(it.resource_id, it.resource_units, t, 0);
+      for (const t of days) book(as, t, 0);
       const segments: [string, string][] = [];
       for (let i = 0; i < days.length; i++) {
         if (i === 0 || days[i]! !== days[i - 1]! + 1) segments.push([W.date(days[i]!), W.date(days[i]!)]);
@@ -201,14 +209,13 @@ export function levelResources(items: LevelItem[], links: CpmLink[], capacity: M
       result.set(it.id, { start_date: W.date(days[0]!), end_date: W.date(days.at(-1)!), delay_days: days[0]! - W.idx(cpm.get(it.id)!.early_start), segments });
       continue;
     }
-    if (it.resource_id) {
-      const cap = capacity.get(it.resource_id)!;
+    if (as.length) {
       let guard = 0;
-      while (!fits(it.resource_id, cap, it.resource_units, s, d)) {
+      while (!fits(as, s, d)) {
         s++;
         if (++guard > 20000) throw new Error("Could not level within the scheduling window");
       }
-      book(it.resource_id, it.resource_units, s, d);
+      book(as, s, d);
     }
     placed.set(it.id, s);
     result.set(it.id, { start_date: W.date(s), end_date: W.date(s + d), delay_days: s - W.idx(cpm.get(it.id)!.early_start) });

@@ -110,3 +110,33 @@ describe("exact clash confirmation", () => {
     expect(findClashes(wall, pipe).map((c) => [c.b.name, c.exact])).toEqual([["Embedded pipe", true]]);
   });
 });
+
+describe("clearance (soft) clashes", () => {
+  it("reports elements closer than the clearance with their measured gap", async () => {
+    const { ifcWithBoxes } = await import("./ifc-fixture.js");
+    const { elementBoxes, findClashes } = await import("../src/lib/ifc-geometry.js");
+    const { segmentDistance, pointTriangleDistance } = await import("../src/lib/mesh-intersect.js");
+    expect(pointTriangleDistance([0.25, 0.25, 2], [0, 0, 0, 1, 0, 0, 0, 1, 0])).toBeCloseTo(2);
+    expect(segmentDistance([0, 0, 0], [1, 0, 0], [0.5, 1, 1], [0.5, 2, 1])).toBeCloseTo(Math.SQRT2);
+
+    // Beam from y=0 to 0.3 m. Pipe A is 30 mm away, pipe B 300 mm away.
+    const beam = await elementBoxes(new Uint8Array(ifcWithBoxes([{ name: "Beam", x: 0, y: 0, z: 3, dx: 6, dy: 0.3, dz: 0.5 }])));
+    const pipes = await elementBoxes(new Uint8Array(ifcWithBoxes([
+      { type: "IFCPIPESEGMENT", name: "Pipe A", x: 1, y: 0.33, z: 3.1, dx: 2, dy: 0.1, dz: 0.1 },
+      { type: "IFCPIPESEGMENT", name: "Pipe B", x: 1, y: 0.6, z: 3.1, dx: 2, dy: 0.1, dz: 0.1 },
+    ])));
+    expect(findClashes(beam, pipes)).toEqual([]); // no hard clashes
+    const soft = findClashes(beam, pipes, 0.01, 500, true, 0.05);
+    expect(soft.map((c) => [c.b.name, c.kind, c.distance])).toEqual([["Pipe A", "clearance", 0.03]]);
+    expect(findClashes(beam, pipes, 0.01, 500, true, 0.5).map((c) => c.b.name)).toEqual(["Pipe A", "Pipe B"]);
+  });
+
+  it("is available through the clash API", async () => {
+    const { ifcWithBoxes } = await import("./ifc-fixture.js");
+    const P = `/api/projects/${projectId}/models`;
+    const a = (await owner.upload(P, { name: "Structure" }, { name: "s.ifc", type: "application/octet-stream", data: ifcWithBoxes([{ name: "Beam", x: 0, y: 0, z: 3, dx: 6, dy: 0.3, dz: 0.5 }]) })).body;
+    const b = (await owner.upload(P, { name: "Plumbing" }, { name: "p.ifc", type: "application/octet-stream", data: ifcWithBoxes([{ type: "IFCPIPESEGMENT", name: "Pipe A", x: 1, y: 0.33, z: 3.1, dx: 2, dy: 0.1, dz: 0.1 }]) })).body;
+    const run = (await owner.post(`/api/projects/${projectId}/clashes`, { modelAId: a.modelId, modelBId: b.modelId, clearanceMm: 50 })).body;
+    expect(run.clashes[0]).toMatchObject({ kind: "clearance", distanceM: 0.03, b: { name: "Pipe A" } });
+  });
+});

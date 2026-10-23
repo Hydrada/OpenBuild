@@ -1,10 +1,11 @@
 import { createRequire } from "node:module";
 import { dirname } from "node:path";
-import { meshesClash, type Tri } from "./mesh-intersect.js";
+import { meshDistance, meshesClash, type Tri } from "./mesh-intersect.js";
 
 /** Axis-aligned bounding box of one IFC element in model coordinates (metres). */
 export interface ElementBox { expressId: number; globalId: string | null; type: string; name: string | null; min: [number, number, number]; max: [number, number, number]; tris?: Tri[] }
-export interface Clash { a: ElementBox; b: ElementBox; overlap: [number, number, number]; volume: number; exact: boolean }
+/** kind "hard": the elements interpenetrate. kind "clearance": apart, but closer than the required clearance. */
+export interface Clash { a: ElementBox; b: ElementBox; overlap: [number, number, number]; volume: number; exact: boolean; kind: "hard" | "clearance"; distance: number }
 
 type WebIfc = typeof import("web-ifc");
 let api: InstanceType<WebIfc["IfcAPI"]> | null = null;
@@ -70,32 +71,42 @@ export async function elementBoxes(data: Uint8Array): Promise<ElementBox[]> {
 }
 
 /**
- * Hard clashes: element pairs (one from each model) whose bounding boxes overlap by more than `tolerance`
- * metres on every axis. Sweep-and-prune on X keeps this near-linear for typical models.
+ * Clash detection between two element sets.
+ * Hard clashes: interpenetration beyond `tolerance` (metres): bounding-box candidates confirmed by exact
+ * triangle intersection or containment. Clearance clashes (when `clearance` > 0): elements that do not touch but
+ * whose surfaces are closer than `clearance` metres. Sweep-and-prune on X keeps candidate search near-linear.
  */
-export function findClashes(a: ElementBox[], b: ElementBox[], tolerance = 0.01, limit = 500, exact = true): Clash[] {
+export function findClashes(a: ElementBox[], b: ElementBox[], tolerance = 0.01, limit = 500, exact = true, clearance = 0): Clash[] {
+  const reach = Math.max(clearance, 0);
   const all = [...a.map((e) => ({ e, side: 0 })), ...b.map((e) => ({ e, side: 1 }))].sort((p, q) => p.e.min[0] - q.e.min[0]);
   const active: typeof all = [];
   const out: Clash[] = [];
+  const round = (x: number) => Math.round(x * 1000) / 1000;
   for (const cur of all) {
-    for (let i = active.length - 1; i >= 0; i--) if (active[i]!.e.max[0] < cur.e.min[0]) active.splice(i, 1);
+    for (let i = active.length - 1; i >= 0; i--) if (active[i]!.e.max[0] + reach < cur.e.min[0]) active.splice(i, 1);
     for (const o of active) {
       if (o.side === cur.side) continue;
-      const ov = [0, 1, 2].map((k) => Math.min(o.e.max[k]!, cur.e.max[k]!) - Math.max(o.e.min[k]!, cur.e.min[k]!)) as [number, number, number];
-      if (ov.every((v) => v > tolerance)) {
-        const [ea, eb] = o.side === 0 ? [o.e, cur.e] : [cur.e, o.e];
-        // Boxes overlap; confirm with the real surfaces when meshes are available (diagonals, curves, L-shapes).
-        const confirm = exact && ea.tris?.length && eb.tris?.length;
-        if (confirm) {
-          const lo = [0, 1, 2].map((k) => Math.max(ea.min[k]!, eb.min[k]!) - tolerance);
-          const hi = [0, 1, 2].map((k) => Math.min(ea.max[k]!, eb.max[k]!) + tolerance);
-          if (!meshesClash(ea.tris!, eb.tris!, { min: lo, max: hi })) continue;
-        }
-        out.push({ a: ea, b: eb, overlap: ov.map((v) => Math.round(v * 1000) / 1000) as [number, number, number], volume: Math.round(ov[0] * ov[1] * ov[2] * 1e6) / 1e6, exact: !!confirm });
-        if (out.length >= limit) return out;
+      const [ea, eb] = o.side === 0 ? [o.e, cur.e] : [cur.e, o.e];
+      const ov = [0, 1, 2].map((k) => Math.min(ea.max[k]!, eb.max[k]!) - Math.max(ea.min[k]!, eb.min[k]!)) as [number, number, number];
+      if (!ov.every((x) => x > -reach)) continue; // too far apart even for a clearance check
+      const meshes = !!(exact && ea.tris?.length && eb.tris?.length);
+      const lo = [0, 1, 2].map((k) => Math.max(ea.min[k]!, eb.min[k]!) - reach - tolerance);
+      const hi = [0, 1, 2].map((k) => Math.min(ea.max[k]!, eb.max[k]!) + reach + tolerance);
+      const hard = ov.every((x) => x > tolerance) && (!meshes || meshesClash(ea.tris!, eb.tris!, { min: lo, max: hi }));
+      let distance = 0;
+      if (!hard) {
+        if (reach <= 0) continue;
+        distance = meshes ? meshDistance(ea.tris!, eb.tris!, { min: lo, max: hi }) : Math.max(0, ...ov.map((x) => -x));
+        if (distance >= reach) continue;
       }
+      out.push({
+        a: ea, b: eb, kind: hard ? "hard" : "clearance", distance: round(distance), exact: meshes,
+        overlap: ov.map((x) => round(Math.max(0, x))) as [number, number, number],
+        volume: hard ? Math.round(ov[0] * ov[1] * ov[2] * 1e6) / 1e6 : 0,
+      });
+      if (out.length >= limit) return out;
     }
     active.push(cur);
   }
-  return out.sort((x, y) => y.volume - x.volume);
+  return out.sort((x, y) => (x.kind === y.kind ? y.volume - x.volume || x.distance - y.distance : x.kind === "hard" ? -1 : 1));
 }

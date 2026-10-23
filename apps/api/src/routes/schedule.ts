@@ -23,11 +23,13 @@ const input = z.object({
   predecessors: z.array(link).max(50).optional(),
   predecessorId: z.uuid().nullable().optional(),
   assigneeId: z.uuid().nullable().optional(),
+  /** Resources needed every working day. `resourceId`/`resourceUnits` are accepted as a single-resource shorthand. */
+  resources: z.array(z.object({ id: z.uuid(), units: z.number().int().min(1).max(10000).default(1) })).max(20).optional(),
   resourceId: z.uuid().nullable().optional(),
   resourceUnits: z.number().int().min(1).max(10000).optional(),
   splittable: z.boolean().optional(),
 });
-const COLS = { name: "name", startDate: "start_date", endDate: "end_date", isMilestone: "is_milestone", percentComplete: "percent_complete", assigneeId: "assignee_id", resourceId: "resource_id", resourceUnits: "resource_units", splittable: "splittable" };
+const COLS = { name: "name", startDate: "start_date", endDate: "end_date", isMilestone: "is_milestone", percentComplete: "percent_complete", assigneeId: "assignee_id", splittable: "splittable" };
 
 function predecessorsOf(b: z.infer<typeof input> | Partial<z.infer<typeof input>>) {
   if (b.predecessors) return b.predecessors;
@@ -81,8 +83,10 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     await requireProject(db, user.id, req.params.projectId, "read.full");
     const rows = await db.query<{ id: string; start_date: string; end_date: string; percent_complete: number; name: string }>(
       `SELECT s.id, s.name, s.start_date, s.end_date, s.is_milestone, s.percent_complete, s.assignee_id, s.external_ref, u.name AS assignee_name,
-              s.resource_id, s.resource_units, r.name AS resource_name, s.splittable, s.segments
-         FROM schedule_items s LEFT JOIN users u ON u.id = s.assignee_id LEFT JOIN schedule_resources r ON r.id = s.resource_id
+              s.splittable, s.segments,
+              coalesce((SELECT json_agg(json_build_object('id', r.id, 'name', r.name, 'units', a.units) ORDER BY r.name)
+                          FROM schedule_assignments a JOIN schedule_resources r ON r.id = a.resource_id WHERE a.item_id = s.id), '[]') AS resources
+         FROM schedule_items s LEFT JOIN users u ON u.id = s.assignee_id
         WHERE s.project_id = $1 ORDER BY s.start_date, s.end_date, s.name`,
       [req.params.projectId],
     );
@@ -136,12 +140,12 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     if (end < b.startDate) throw new HttpError(400, "Finish is before start");
     const row = await db.tx(async (q) => {
       if (b.assigneeId) await assertProjectMember(q, project.id, b.assigneeId);
-      await assertResource(q, project.id, b.resourceId);
       const [r] = await q.query<{ id: string }>(
-        `INSERT INTO schedule_items (project_id, name, start_date, end_date, is_milestone, percent_complete, assignee_id, resource_id, resource_units, splittable, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-        [project.id, b.name, b.startDate, end, b.isMilestone, b.percentComplete, b.assigneeId ?? null, b.resourceId ?? null, b.resourceUnits ?? 1, b.splittable ?? false, user.id],
+        `INSERT INTO schedule_items (project_id, name, start_date, end_date, is_milestone, percent_complete, assignee_id, splittable, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [project.id, b.name, b.startDate, end, b.isMilestone, b.percentComplete, b.assigneeId ?? null, b.splittable ?? false, user.id],
       );
+      await setAssignments(q, project.id, r!.id, resourcesOf(b) ?? []);
       await setLinks(q, project.id, r!.id, predecessorsOf(b) ?? []);
       await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "schedule.create", entityType: "schedule_item", entityId: r!.id, detail: { name: b.name, milestone: b.isMilestone } });
       return r;
@@ -160,8 +164,9 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     const { sets, values } = toSet({ ...b, endDate: end }, COLS);
     return db.tx(async (q) => {
       if (b.assigneeId) await assertProjectMember(q, row.project_id, b.assigneeId);
-      await assertResource(q, row.project_id, b.resourceId);
-      const [r] = await q.query(`UPDATE schedule_items SET ${sets.join(", ")} WHERE id = $1 RETURNING *`, [row.id, ...values]);
+      const [r] = sets.length ? await q.query(`UPDATE schedule_items SET ${sets.join(", ")} WHERE id = $1 RETURNING *`, [row.id, ...values]) : await q.query("SELECT * FROM schedule_items WHERE id = $1", [row.id]);
+      const res = resourcesOf(b);
+      if (res) await setAssignments(q, row.project_id, row.id, res);
       const preds = predecessorsOf(b);
       if (preds) await setLinks(q, row.project_id, row.id, preds);
       await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: "schedule.update", entityType: "schedule_item", entityId: row.id, detail: b });
@@ -179,10 +184,18 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     });
   });
 
-  async function assertResource(q: Queryable, projectId: string, resourceId: string | null | undefined) {
-    if (resourceId && !(await q.query("SELECT 1 FROM schedule_resources WHERE id = $1 AND project_id = $2", [resourceId, projectId])).length) {
-      throw new HttpError(400, "Resource not found in this project");
+  function resourcesOf(b: Partial<z.infer<typeof input>>): { id: string; units: number }[] | undefined {
+    if (b.resources) return b.resources;
+    if (b.resourceId !== undefined) return b.resourceId ? [{ id: b.resourceId, units: b.resourceUnits ?? 1 }] : [];
+    return undefined;
+  }
+
+  async function setAssignments(q: Queryable, projectId: string, itemId: string, res: { id: string; units: number }[]) {
+    for (const r of res) {
+      if (!(await q.query("SELECT 1 FROM schedule_resources WHERE id = $1 AND project_id = $2", [r.id, projectId])).length) throw new HttpError(400, "Resource not found in this project");
     }
+    await q.query("DELETE FROM schedule_assignments WHERE item_id = $1", [itemId]);
+    for (const r of res) await q.query("INSERT INTO schedule_assignments (item_id, resource_id, units) VALUES ($1, $2, $3) ON CONFLICT (item_id, resource_id) DO UPDATE SET units = EXCLUDED.units", [itemId, r.id, r.units]);
   }
 
   // ---------- Resources and levelling ----------
@@ -191,7 +204,7 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     const user = requireUser(req);
     await requireProject(db, user.id, req.params.projectId, "read.full");
     return db.query(
-      `SELECT r.id, r.name, r.capacity, (SELECT count(*)::int FROM schedule_items s WHERE s.resource_id = r.id) AS activities
+      `SELECT r.id, r.name, r.capacity, (SELECT count(*)::int FROM schedule_assignments a WHERE a.resource_id = r.id) AS activities
          FROM schedule_resources r WHERE r.project_id = $1 ORDER BY r.name`,
       [req.params.projectId],
     );
@@ -208,7 +221,12 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
   });
 
   async function levelling(q: Queryable, projectId: string) {
-    const items = await q.query<LevelItem & { name: string; segments: [string, string][] | null }>("SELECT id, name, start_date, end_date, resource_id, resource_units, splittable, segments FROM schedule_items WHERE project_id = $1", [projectId]);
+    const items = await q.query<LevelItem & { name: string; segments: [string, string][] | null }>(
+      `SELECT s.id, s.name, s.start_date, s.end_date, s.splittable, s.segments,
+              coalesce((SELECT json_agg(json_build_object('resource_id', a.resource_id, 'units', a.units)) FROM schedule_assignments a WHERE a.item_id = s.id), '[]') AS assignments
+         FROM schedule_items s WHERE s.project_id = $1`,
+      [projectId],
+    );
     if (!items.length) throw new HttpError(400, "The schedule is empty");
     const calendar = await calendarOf(q, projectId);
     for (const i of items) if (i.segments?.length) i.work_days = workingDaysIn(i.segments, calendar);

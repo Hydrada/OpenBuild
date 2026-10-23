@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { criticalPath, levelResources } from "../src/lib/cpm.js";
+import { criticalPath, levelResources, type LevelItem } from "../src/lib/cpm.js";
 import { parseMsProjectXml } from "../src/lib/msproject.js";
 import { Client, inviteAndJoin, makeApp, registerOwner, type App, type Db } from "./helpers.js";
 
@@ -94,6 +94,19 @@ describe("resource levelling", () => {
     expect(() => levelResources([{ ...items[0]!, resource_units: 3 }], [], new Map([["crew", 2]]))).toThrow(/more units/);
   });
 
+  it("levels an activity that needs several resources at once", () => {
+    // The pour needs the crew AND the pump; the pump is busy on another job until the 4th.
+    const multi: LevelItem[] = [
+      { id: "Pump job", start_date: "2026-03-02", end_date: "2026-03-04", assignments: [{ resource_id: "pump", units: 1 }] },
+      { id: "Pour", start_date: "2026-03-02", end_date: "2026-03-03", assignments: [{ resource_id: "crew", units: 2 }, { resource_id: "pump", units: 1 }] },
+      { id: "Formwork", start_date: "2026-03-02", end_date: "2026-03-02", assignments: [{ resource_id: "crew", units: 1 }] },
+    ];
+    const { result } = levelResources(multi, [], new Map([["crew", 2], ["pump", 1]]));
+    expect(result.get("Pour")).toMatchObject({ start_date: "2026-03-05", end_date: "2026-03-06" });
+    expect(result.get("Formwork")!.delay_days).toBe(0);
+    expect(() => levelResources([{ ...multi[1]!, assignments: [{ resource_id: "crew", units: 3 }] }], [], new Map([["crew", 2]]))).toThrow(/more units/);
+  });
+
   it("splits a splittable activity around critical work instead of delaying it", () => {
     const items = [
       { id: "A", start_date: "2026-03-03", end_date: "2026-03-04", resource_id: "crew", resource_units: 1 },
@@ -125,7 +138,7 @@ describe("resource levelling", () => {
     expect(preview.changes.map((c: { name: string; start_date: string }) => [c.name, c.start_date])).toEqual([["Slab on grade", "2026-03-07"]]);
     expect((await owner.post(`${P}/schedule/level`)).body.moved).toBe(1);
     const slab = (await owner.get(`${P}/schedule`)).body.find((x: { name: string }) => x.name === "Slab on grade");
-    expect(slab).toMatchObject({ start_date: "2026-03-07", end_date: "2026-03-09", resource_name: "Concrete crew" });
+    expect(slab).toMatchObject({ start_date: "2026-03-07", end_date: "2026-03-09", resources: [{ id: crew.id, name: "Concrete crew", units: 1 }] });
     expect((await owner.get(`${P}/schedule/level`)).body.changes).toEqual([]);
   });
 });
