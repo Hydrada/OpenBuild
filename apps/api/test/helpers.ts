@@ -1,14 +1,34 @@
 import { buildApp } from "../src/app.js";
-import { createPgliteDb, type Db } from "../src/db/db.js";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import pg from "pg";
+import { createPgliteDb, createPostgresDb, type Db } from "../src/db/db.js";
+import { createNotifier } from "../src/lib/notify.js";
+import { LocalStorage } from "../src/lib/storage.js";
 import { migrate } from "../src/db/migrate.js";
 
 export type App = Awaited<ReturnType<typeof buildApp>>;
 
-export async function makeApp(opts: { dataDir?: string; allowSignup?: boolean } = {}) {
-  const db = await createPgliteDb(opts.dataDir);
+export async function makeApp(opts: { dataDir?: string; storageDir?: string; allowSignup?: boolean } = {}) {
+  const db = opts.dataDir || !process.env.TEST_DATABASE_URL ? await createPgliteDb(opts.dataDir) : await freshPostgresSchema(process.env.TEST_DATABASE_URL);
   await migrate(db);
-  const app = await buildApp({ db, allowSignup: opts.allowSignup ?? true, secureCookies: false });
-  return { app, db };
+  const storage = new LocalStorage(opts.storageDir ?? mkdtempSync(join(tmpdir(), "openbuild-files-")));
+  const app = await buildApp({
+    db, storage, allowSignup: opts.allowSignup ?? true, secureCookies: false,
+    notify: createNotifier(), documentTools: [{ id: "opendraft", name: "OpenDraft" }],
+  });
+  return { app, db, storage };
+}
+
+/** With TEST_DATABASE_URL set (CI), each app gets its own schema in a real PostgreSQL server. */
+async function freshPostgresSchema(url: string): Promise<Db> {
+  const schema = `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const admin = new pg.Client({ connectionString: url });
+  await admin.connect();
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  await admin.end();
+  return createPostgresDb(url, schema);
 }
 
 /** A cookie-carrying client, like a browser tab. */
@@ -30,6 +50,30 @@ export class Client {
     if (set) this.cookie = set.value ? `ob_session=${set.value}` : "";
     return { status: res.statusCode, body: res.body ? res.json() : undefined };
   }
+  /** multipart/form-data POST with text fields and an optional single file. */
+  async upload(url: string, fields: Record<string, string>, file?: { name: string; type: string; data: Buffer | string }) {
+    const boundary = "----openbuildtest" + Math.random().toString(16).slice(2);
+    const CRLF = String.fromCharCode(13, 10);
+    const parts: Buffer[] = [];
+    for (const [k, v] of Object.entries(fields)) {
+      parts.push(Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="${k}"${CRLF}${CRLF}${v}${CRLF}`));
+    }
+    if (file) {
+      parts.push(Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="file"; filename="${file.name}"${CRLF}Content-Type: ${file.type}${CRLF}${CRLF}`));
+      parts.push(Buffer.isBuffer(file.data) ? file.data : Buffer.from(file.data));
+      parts.push(Buffer.from(CRLF));
+    }
+    parts.push(Buffer.from(`--${boundary}--${CRLF}`));
+    const res = await this.app.inject({
+      method: "POST", url, payload: Buffer.concat(parts),
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}`, "x-openbuild-csrf": "1", ...(this.cookie ? { cookie: this.cookie } : {}) },
+    });
+    return { status: res.statusCode, body: res.body ? res.json() : undefined };
+  }
+  async raw(url: string) {
+    return this.app.inject({ method: "GET", url, headers: this.cookie ? { cookie: this.cookie } : {} });
+  }
+  del = (url: string) => this.req("DELETE", url);
   get = (url: string) => this.req("GET", url);
   post = (url: string, body?: unknown) => this.req("POST", url, body ?? {});
   patch = (url: string, body: unknown) => this.req("PATCH", url, body);
@@ -57,3 +101,10 @@ export async function inviteAndJoin(app: App, inviter: Client, orgId: string, em
 }
 
 export type { Db };
+
+export const PDF = (label = "sheet") => Buffer.from(`%PDF-1.4
+% ${label}
+1 0 obj<<>>endobj
+trailer<<>>
+%%EOF
+`);

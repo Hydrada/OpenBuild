@@ -1,12 +1,19 @@
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cookie from "@fastify/cookie";
 import fastifyStatic from "@fastify/static";
+import multipart from "@fastify/multipart";
 import { existsSync } from "node:fs";
 import { ZodError } from "zod";
 import type { Db } from "./db/db.js";
 import { HttpError } from "./lib/errors.js";
 import { sha256 } from "./lib/security.js";
+import type { Notifier } from "./lib/notify.js";
+import type { Storage } from "./lib/storage.js";
+import { accountRoutes } from "./routes/account.js";
 import { authRoutes } from "./routes/auth.js";
+import { documentRoutes } from "./routes/documents.js";
+import { fieldRoutes } from "./routes/field.js";
+import { rfiRoutes } from "./routes/rfis.js";
 import { orgRoutes } from "./routes/orgs.js";
 import { projectRoutes } from "./routes/projects.js";
 
@@ -15,9 +22,21 @@ export interface AppConfig {
   /** Allow anyone to register a new organization. Disable after first-run setup in shared deployments. */
   allowSignup: boolean;
   secureCookies: boolean;
+  storage: Storage;
+  notify: Notifier;
+  /** External document tools (OpenDraft, the Acrobat alternative, ...). See docs/INTEGRATIONS.md. */
+  documentTools: DocumentTool[];
+  maxUploadBytes?: number;
   /** Absolute path to the built web client, served at / when present. */
   webDist?: string;
   logger?: boolean;
+}
+
+export interface DocumentTool {
+  id: string;
+  name: string;
+  /** Optional deep link; `{downloadUrl}` and `{name}` are substituted. Without it the UI offers download + upload-markup. */
+  urlTemplate?: string;
 }
 
 export interface SessionUser {
@@ -40,6 +59,7 @@ export const CSRF_HEADER = "x-openbuild-csrf";
 export async function buildApp(config: AppConfig) {
   const app = Fastify({ logger: config.logger ?? false, bodyLimit: 1024 * 1024 });
   await app.register(cookie);
+  await app.register(multipart, { limits: { fileSize: config.maxUploadBytes ?? 100 * 1024 * 1024, files: 1, fields: 30 } });
 
   app.decorateRequest("user", null);
 
@@ -88,6 +108,10 @@ export async function buildApp(config: AppConfig) {
   await app.register(authRoutes(config), { prefix: "/api" });
   await app.register(orgRoutes(config), { prefix: "/api" });
   await app.register(projectRoutes(config), { prefix: "/api" });
+  await app.register(accountRoutes(config), { prefix: "/api" });
+  await app.register(documentRoutes(config), { prefix: "/api" });
+  await app.register(rfiRoutes(config), { prefix: "/api" });
+  await app.register(fieldRoutes(config), { prefix: "/api" });
 
   if (config.webDist && existsSync(config.webDist)) {
     await app.register(fastifyStatic, { root: config.webDist, wildcard: false });

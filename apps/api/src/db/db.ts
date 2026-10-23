@@ -17,8 +17,9 @@ export interface Db extends Queryable {
 // Return NUMERIC as strings so money never passes through a JS float.
 pg.types.setTypeParser(1700, (v) => v);
 
-export function createPostgresDb(connectionString: string): Db {
-  const pool = new pg.Pool({ connectionString });
+/** `schema` (tests) pins every pooled connection's search_path so suites can run isolated in one database. */
+export function createPostgresDb(connectionString: string, schema?: string): Db {
+  const pool = new pg.Pool({ connectionString, ...(schema ? { options: `-c search_path=${schema}` } : {}) });
   return {
     driver: "postgres",
     async query(sql, params) {

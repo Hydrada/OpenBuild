@@ -17,8 +17,8 @@ export const authRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
   async function startSession(q: Queryable, reply: FastifyReply, userId: string) {
     const { token, hash } = newToken();
     await q.query(
-      `INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, now() + make_interval(days => $3))`,
-      [hash, userId, SESSION_DAYS],
+      `INSERT INTO sessions (token_hash, user_id, expires_at, user_agent) VALUES ($1, $2, now() + make_interval(days => $3), $4)`,
+      [hash, userId, SESSION_DAYS, (reply.request.headers["user-agent"] ?? "").slice(0, 300) || null],
     );
     setSessionCookie(reply, token, config.secureCookies);
   }

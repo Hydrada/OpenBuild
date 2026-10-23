@@ -2,6 +2,8 @@ import { fileURLToPath } from "node:url";
 import { buildApp } from "./app.js";
 import { createDb } from "./db/db.js";
 import { migrate } from "./db/migrate.js";
+import { createNotifier } from "./lib/notify.js";
+import { LocalStorage } from "./lib/storage.js";
 
 const env = process.env;
 const db = await createDb(env);
@@ -12,6 +14,9 @@ const app = await buildApp({
   db,
   allowSignup: env.OPENBUILD_ALLOW_SIGNUP !== "false",
   secureCookies: env.OPENBUILD_SECURE_COOKIES === "true",
+  storage: new LocalStorage(env.OPENBUILD_STORAGE_DIR ?? "./data/files"),
+  notify: createNotifier({ baseUrl: env.OPENBUILD_BASE_URL }),
+  documentTools: env.OPENBUILD_DOC_TOOLS ? JSON.parse(env.OPENBUILD_DOC_TOOLS) : [{ id: "opendraft", name: "OpenDraft" }],
   webDist: env.OPENBUILD_WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
   logger: env.NODE_ENV !== "test",
 });

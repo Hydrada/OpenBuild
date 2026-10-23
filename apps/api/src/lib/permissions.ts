@@ -6,12 +6,15 @@ export type ProjectRole = "manager" | "contributor" | "viewer";
 /** Org owners/admins act as "admin" on every project in their org. */
 export type EffectiveProjectRole = "admin" | ProjectRole;
 
-export type ProjectAction = "read" | "task.write" | "project.manage";
+/** read: see the project. record.write: create/edit records (tasks, RFIs, logs...). record.manage: settings, team, official answers, closing. */
+export type ProjectAction = "read" | "record.write" | "record.manage" | "task.write" | "project.manage";
 
 const ALLOWED: Record<ProjectAction, EffectiveProjectRole[]> = {
   read: ["admin", "manager", "contributor", "viewer"],
   "task.write": ["admin", "manager", "contributor"],
   "project.manage": ["admin", "manager"],
+  "record.write": ["admin", "manager", "contributor"],
+  "record.manage": ["admin", "manager"],
 };
 
 export function projectRoleAllows(role: EffectiveProjectRole | null, action: ProjectAction): boolean {
