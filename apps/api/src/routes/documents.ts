@@ -5,7 +5,7 @@ import { decide, listSteps, startRound, type StepRow } from "../lib/approvals.js
 import { audit } from "../lib/audit.js";
 import { computePayApp } from "../lib/finance.js";
 import { HttpError } from "../lib/errors.js";
-import { assertVisibleToSub, canWriteRecords, isSubcontractor, isUuid, requireProject } from "../lib/permissions.js";
+import { canWriteRecords, isSubcontractor, isUuid, requireProject } from "../lib/permissions.js";
 import { assertProjectMember, loadInProject } from "../lib/records.js";
 import { INLINE_TYPES, isPdf, readUpload, storeFile } from "../lib/uploads.js";
 

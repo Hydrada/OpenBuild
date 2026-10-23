@@ -9,7 +9,6 @@ import { assertProjectMember, loadInProject, nextNumber } from "../lib/records.j
 import { newToken, sha256 } from "../lib/security.js";
 import { isPdf, readUpload, storeFile } from "../lib/uploads.js";
 
-type P = { Params: { projectId: string } };
 
 const COMMENTABLE = {
   rfi: { table: "rfis", related: ["assignee_id", "created_by"] },

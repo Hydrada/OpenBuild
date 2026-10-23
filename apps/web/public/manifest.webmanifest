@@ -1,0 +1,9 @@
+{
+  "name": "OpenBuild",
+  "short_name": "OpenBuild",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#1c2330",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

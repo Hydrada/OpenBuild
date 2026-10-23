@@ -1,195 +1,191 @@
-import { useState, type FormEvent } from "react";
-import { api, fmtDate } from "../api";
-import { Badge, Empty, ErrorText, Field } from "../components/ui";
+import { useState, type JSX } from "react";
+import { api, fmtDate, label } from "../api";
+import { Badge, DataTable, ErrorText, Form, Link, Loading } from "../components/ui";
+import { CustomFields, canManage, canWrite, useMemberOptions } from "../components/records";
 import { useAction, useApi } from "../hooks";
 import { ActivityList } from "./Dashboard";
+import { DrawingsTool, DocumentsTool, SpecsTool } from "./tools/docs";
+import { RfisTool, SubmittalsTool } from "./tools/rfis";
+import { DailyLogsTool, IncidentsTool, InspectionsTool, ObservationsTool, PhotosTool, PunchTool } from "./tools/field";
+import { BudgetTool, ChangeEventsTool, ChangeOrdersTool, ContractsTool, InvoicesTool } from "./tools/financials";
 
-type Tab = "tasks" | "team" | "activity" | "settings";
+export interface ProjectInfo { id: string; org_id: string; name: string; code: string | null; address: string | null; status: string; start_date: string | null; end_date: string | null; myRole: string }
 
-export function ProjectPage({ projectId }: { projectId: string }) {
-  const project = useApi(`/projects/${projectId}`);
-  const [tab, setTab] = useState<Tab>("tasks");
+interface Tool { id: string; label: string; group: string; external?: boolean; render: (p: ProjectInfo, reload: () => void) => JSX.Element }
+
+const TOOLS: Tool[] = [
+  { id: "home", label: "Home", group: "Project", render: (p) => <Home project={p} /> },
+  { id: "team", label: "Team", group: "Project", render: (p) => <Team project={p} /> },
+  { id: "activity", label: "Activity", group: "Project", render: (p) => <Activity projectId={p.id} /> },
+  { id: "drawings", label: "Drawings", group: "Documents", external: true, render: (p) => <DrawingsTool project={p} /> },
+  { id: "documents", label: "Documents", group: "Documents", render: (p) => <DocumentsTool project={p} /> },
+  { id: "specs", label: "Specifications", group: "Documents", external: true, render: (p) => <SpecsTool project={p} /> },
+  { id: "rfis", label: "RFIs", group: "Documents", external: true, render: (p) => <RfisTool project={p} /> },
+  { id: "submittals", label: "Submittals", group: "Documents", external: true, render: (p) => <SubmittalsTool project={p} /> },
+  { id: "daily-log", label: "Daily log", group: "Field", render: (p) => <DailyLogsTool project={p} /> },
+  { id: "inspections", label: "Inspections", group: "Field", render: (p) => <InspectionsTool project={p} /> },
+  { id: "punch", label: "Punch list", group: "Field", external: true, render: (p) => <PunchTool project={p} /> },
+  { id: "observations", label: "Observations", group: "Field", external: true, render: (p) => <ObservationsTool project={p} /> },
+  { id: "incidents", label: "Incidents", group: "Field", render: (p) => <IncidentsTool project={p} /> },
+  { id: "photos", label: "Photos", group: "Field", render: (p) => <PhotosTool project={p} /> },
+  { id: "budget", label: "Budget", group: "Financials", render: (p) => <BudgetTool project={p} /> },
+  { id: "contracts", label: "Contracts", group: "Financials", render: (p) => <ContractsTool project={p} /> },
+  { id: "change-events", label: "Change events", group: "Financials", render: (p) => <ChangeEventsTool project={p} /> },
+  { id: "change-orders", label: "Change orders", group: "Financials", render: (p) => <ChangeOrdersTool project={p} /> },
+  { id: "invoices", label: "Invoices", group: "Financials", render: (p) => <InvoicesTool project={p} /> },
+  { id: "settings", label: "Settings", group: "Project", render: (p, reload) => <Settings project={p} onSaved={reload} /> },
+];
+
+export function ProjectPage({ projectId, tool }: { projectId: string; tool: string }) {
+  const project = useApi<ProjectInfo>(`/projects/${projectId}`);
   if (project.error) return <ErrorText error={project.error} />;
   const p = project.data;
-  if (!p) return <p className="muted">Loading…</p>;
-  const canWrite = p.myRole !== "viewer";
-  const canManage = p.myRole === "admin" || p.myRole === "manager";
-  const tabs: Tab[] = canManage ? ["tasks", "team", "activity", "settings"] : ["tasks", "team", "activity"];
+  if (!p) return <Loading />;
+  const sub = p.myRole === "subcontractor";
+  const visible = TOOLS.filter((t) => (!sub || t.external) && (t.id !== "settings" || canManage(p.myRole)));
+  const current = visible.find((t) => t.id === tool) ?? visible[0]!;
+  const groups = [...new Set(visible.map((t) => t.group))];
+  return (
+    <div className="project">
+      <header className="project-head">
+        <h1>{p.name} <Badge value={p.status} /></h1>
+        <p className="muted">
+          {p.code && <>#{p.code} · </>}{p.address && <>{p.address} · </>}
+          {fmtDate(p.start_date)} – {fmtDate(p.end_date)} · your role: <strong>{label(p.myRole)}</strong>
+        </p>
+      </header>
+      <div className="project-body">
+        <nav className="tool-nav" aria-label="Project tools">
+          {groups.map((g) => (
+            <div key={g}>
+              <div className="tool-group">{g}</div>
+              {visible.filter((t) => t.group === g).map((t) => (
+                <Link key={t.id} to={`/projects/${p.id}/${t.id}`} className={t === current ? "active" : ""}>{t.label}</Link>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <section className="tool" aria-label={current.label}>{current.render(p, project.reload)}</section>
+      </div>
+    </div>
+  );
+}
 
+function Home({ project }: { project: ProjectInfo }) {
+  const tasks = useApi<any[]>(`/projects/${project.id}/tasks`);
+  const { options } = useMemberOptions(project.id);
+  const { run, error } = useAction();
+  const writable = canWrite(project.myRole);
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>{p.name} <Badge value={p.status} /></h1>
-          <p className="muted">
-            {p.code && <>#{p.code} · </>}{p.address && <>{p.address} · </>}
-            {fmtDate(p.start_date)} – {fmtDate(p.end_date)} · your role: <strong>{p.myRole}</strong>
-          </p>
-        </div>
+      <h2 className="tool-title">Tasks</h2>
+      {writable && (
+        <Form ariaLabel="New task" submitLabel="Add task" resetOnSuccess className="compact"
+          fields={[
+            { name: "title", label: "Task title", required: true, full: true },
+            { name: "assigneeId", label: "Assignee", type: "select", options },
+            { name: "dueDate", label: "Due date", type: "date" },
+          ]}
+          onSubmit={async (v) => { await api("POST", `/projects/${project.id}/tasks`, { title: v.title, assigneeId: v.assigneeId || null, dueDate: v.dueDate || null }); tasks.reload(); }} />
+      )}
+      <ErrorText error={error ?? tasks.error} />
+      <section className="card">
+        <DataTable rows={tasks.data} empty="No tasks yet." caption="Tasks" columns={[
+          { label: "Task", render: (t) => <span className={t.status === "done" ? "struck" : ""}>{t.title}</span> },
+          { label: "Assignee", render: (t) => t.assignee_name ?? "—" },
+          { label: "Due", render: (t) => <span className={t.status !== "done" && t.due_date && t.due_date.slice(0, 10) < new Date().toISOString().slice(0, 10) ? "overdue" : ""}>{fmtDate(t.due_date)}</span> },
+          { label: "Status", render: (t) => writable ? (
+            <select aria-label={`Status of ${t.title}`} value={t.status} onChange={(e) => run(() => api("PATCH", `/tasks/${t.id}`, { status: e.target.value })).then(tasks.reload)}>
+              <option value="open">Open</option><option value="in_progress">In progress</option><option value="done">Done</option>
+            </select>
+          ) : <Badge value={t.status} /> },
+        ]} />
+      </section>
+      <div className="actions left">
+        <a className="button" href={`/api/projects/${project.id}/export/tasks.csv`}>Export CSV</a>
       </div>
-      <nav className="tabs" role="tablist">
-        {tabs.map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
-            {t[0]!.toUpperCase() + t.slice(1)}
-          </button>
-        ))}
-      </nav>
-      {tab === "tasks" && <Tasks projectId={projectId} canWrite={canWrite} />}
-      {tab === "team" && <Team projectId={projectId} orgId={p.org_id} canManage={canManage} />}
-      {tab === "activity" && <Activity projectId={projectId} />}
-      {tab === "settings" && <Settings project={p} onSaved={project.reload} />}
     </>
   );
 }
 
-function Tasks({ projectId, canWrite }: { projectId: string; canWrite: boolean }) {
-  const tasks = useApi<any[]>(`/projects/${projectId}/tasks`);
-  const members = useApi<any[]>(`/projects/${projectId}/members`);
-  const [f, setF] = useState({ title: "", assigneeId: "", dueDate: "" });
-  const { busy, error, run } = useAction();
-
-  async function add(e: FormEvent) {
-    e.preventDefault();
-    const ok = await run(() => api("POST", `/projects/${projectId}/tasks`, { title: f.title, assigneeId: f.assigneeId || null, dueDate: f.dueDate || null }));
-    if (ok) {
-      setF({ title: "", assigneeId: "", dueDate: "" });
-      tasks.reload();
-    }
-  }
-  async function setStatus(id: string, status: string) {
-    await run(() => api("PATCH", `/tasks/${id}`, { status }));
-    tasks.reload();
-  }
-
-  return (
-    <section className="card">
-      {canWrite && (
-        <form className="inline-form" onSubmit={add} aria-label="New task">
-          <input placeholder="New task" aria-label="Task title" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} required />
-          <select aria-label="Assignee" value={f.assigneeId} onChange={(e) => setF({ ...f, assigneeId: e.target.value })}>
-            <option value="">Unassigned</option>
-            {members.data?.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-          <input type="date" aria-label="Due date" value={f.dueDate} onChange={(e) => setF({ ...f, dueDate: e.target.value })} />
-          <button className="primary" disabled={busy}>Add task</button>
-        </form>
-      )}
-      <ErrorText error={error ?? tasks.error} />
-      {tasks.data && (tasks.data.length === 0 ? <Empty>No tasks yet.</Empty> : (
-        <table className="table">
-          <thead><tr><th>Task</th><th>Assignee</th><th>Due</th><th>Status</th></tr></thead>
-          <tbody>
-            {tasks.data.map((t) => {
-              const overdue = t.status !== "done" && t.due_date && t.due_date < new Date().toISOString().slice(0, 10);
-              return (
-                <tr key={t.id} className={t.status === "done" ? "done" : ""}>
-                  <td>{t.title}</td>
-                  <td>{t.assignee_name ?? "—"}</td>
-                  <td className={overdue ? "overdue" : ""}>{fmtDate(t.due_date)}</td>
-                  <td>
-                    {canWrite ? (
-                      <select aria-label={`Status of ${t.title}`} value={t.status} onChange={(e) => setStatus(t.id, e.target.value)}>
-                        <option value="open">Open</option><option value="in_progress">In progress</option><option value="done">Done</option>
-                      </select>
-                    ) : <Badge value={t.status} />}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      ))}
-    </section>
-  );
-}
-
-function Team({ projectId, orgId, canManage }: { projectId: string; orgId: string; canManage: boolean }) {
-  const members = useApi<any[]>(`/projects/${projectId}/members`);
-  const org = useApi<{ members: any[] }>(canManage ? `/orgs/${orgId}/members` : null);
+function Team({ project }: { project: ProjectInfo }) {
+  const members = useApi<any[]>(`/projects/${project.id}/members`);
+  const manage = canManage(project.myRole);
+  const org = useApi<{ members: any[] }>(manage ? `/orgs/${project.org_id}/members` : null);
   const [add, setAdd] = useState({ userId: "", role: "contributor" });
   const { busy, error, run } = useAction();
   const candidates = org.data?.members.filter((m) => m.role === "member" && !members.data?.some((pm) => pm.id === m.id)) ?? [];
+  const roles = ["manager", "contributor", "viewer", "subcontractor"];
 
   async function setRole(userId: string, role: string | null) {
-    const ok = await run(() => api("PUT", `/projects/${projectId}/members/${userId}`, { role }));
-    if (ok) members.reload();
+    if (await run(() => api("PUT", `/projects/${project.id}/members/${userId}`, { role }))) members.reload();
   }
 
   return (
-    <section className="card">
+    <>
+      <h2 className="tool-title">Project team</h2>
       <ErrorText error={error ?? members.error} />
-      <table className="table">
-        <thead><tr><th>Name</th><th>Email</th><th>Role</th>{canManage && <th />}</tr></thead>
-        <tbody>
-          {members.data?.map((m) => (
-            <tr key={m.id}>
-              <td>{m.name}</td>
-              <td>{m.email}</td>
-              <td>
-                {canManage && m.role !== "admin" ? (
-                  <select aria-label={`Role of ${m.name}`} value={m.role} onChange={(e) => setRole(m.id, e.target.value)}>
-                    <option value="manager">Manager</option><option value="contributor">Contributor</option><option value="viewer">Viewer</option>
-                  </select>
-                ) : m.role === "admin" ? `Org ${m.org_role}` : m.role}
-              </td>
-              {canManage && <td>{m.role !== "admin" && <button className="link danger" onClick={() => setRole(m.id, null)}>Remove</button>}</td>}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {canManage && candidates.length > 0 && (
-        <form className="inline-form" onSubmit={(e) => { e.preventDefault(); if (add.userId) setRole(add.userId, add.role); }}>
-          <select aria-label="Add member" value={add.userId} onChange={(e) => setAdd({ ...add, userId: e.target.value })}>
-            <option value="">Add a company member…</option>
-            {candidates.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.email})</option>)}
-          </select>
-          <select aria-label="Project role" value={add.role} onChange={(e) => setAdd({ ...add, role: e.target.value })}>
-            <option value="manager">Manager</option><option value="contributor">Contributor</option><option value="viewer">Viewer</option>
-          </select>
-          <button disabled={busy || !add.userId}>Add to project</button>
-        </form>
-      )}
-    </section>
+      <section className="card">
+        <DataTable rows={members.data} caption="Project team" columns={[
+          { label: "Name", render: (m) => m.name },
+          { label: "Company", render: (m) => m.company ?? "—" },
+          { label: "Email", render: (m) => m.email },
+          { label: "Role", render: (m) => manage && m.role !== "admin" ? (
+            <select aria-label={`Role of ${m.name}`} value={m.role} onChange={(e) => setRole(m.id, e.target.value)}>
+              {roles.map((r) => <option key={r} value={r}>{label(r)}</option>)}
+            </select>
+          ) : m.role === "admin" ? `Company ${m.org_role}` : label(m.role) },
+          { label: "", render: (m) => manage && m.role !== "admin" ? <button className="link danger" onClick={() => setRole(m.id, null)}>Remove</button> : null },
+        ]} />
+        {manage && candidates.length > 0 && (
+          <form className="inline-form" onSubmit={(e) => { e.preventDefault(); if (add.userId) setRole(add.userId, add.role); }}>
+            <select aria-label="Add member" value={add.userId} onChange={(e) => setAdd({ ...add, userId: e.target.value })}>
+              <option value="">Add a company member…</option>
+              {candidates.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.email})</option>)}
+            </select>
+            <select aria-label="Project role" value={add.role} onChange={(e) => setAdd({ ...add, role: e.target.value })}>
+              {roles.map((r) => <option key={r} value={r}>{label(r)}</option>)}
+            </select>
+            <button disabled={busy || !add.userId}>Add to project</button>
+          </form>
+        )}
+      </section>
+      <p className="muted small">Subcontractors see drawings and specifications, plus only the RFIs, submittals, punch items and observations assigned to them.</p>
+    </>
   );
 }
 
 function Activity({ projectId }: { projectId: string }) {
   const { data, error } = useApi<any[]>(`/projects/${projectId}/activity`);
-  return <section className="card"><ErrorText error={error} />{data && <ActivityList items={data} />}</section>;
+  return <><h2 className="tool-title">Activity</h2><section className="card"><ErrorText error={error} />{data ? <ActivityList items={data} /> : <Loading />}</section></>;
 }
 
-function Settings({ project, onSaved }: { project: any; onSaved: () => void }) {
-  const [f, setF] = useState({
-    name: project.name, code: project.code ?? "", address: project.address ?? "", status: project.status,
-    startDate: project.start_date?.slice(0, 10) ?? "", endDate: project.end_date?.slice(0, 10) ?? "",
-  });
-  const { busy, error, run } = useAction();
-  const [saved, setSaved] = useState(false);
-  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => { setSaved(false); setF({ ...f, [k]: e.target.value }); };
-
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    const ok = await run(() => api("PATCH", `/projects/${project.id}`, {
-      name: f.name, code: f.code || null, address: f.address || null, status: f.status, startDate: f.startDate || null, endDate: f.endDate || null,
-    }));
-    if (ok) { setSaved(true); onSaved(); }
-  }
-
+function Settings({ project, onSaved }: { project: ProjectInfo; onSaved: () => void }) {
   return (
-    <form className="card form-grid" onSubmit={save} aria-label="Project settings">
-      <Field label="Project name"><input value={f.name} onChange={set("name")} required /></Field>
-      <Field label="Project number"><input value={f.code} onChange={set("code")} /></Field>
-      <Field label="Address"><input value={f.address} onChange={set("address")} /></Field>
-      <Field label="Stage">
-        <select value={f.status} onChange={set("status")}>
-          <option value="bidding">Bidding</option><option value="active">Active</option>
-          <option value="on_hold">On hold</option><option value="closed">Closed</option>
-        </select>
-      </Field>
-      <Field label="Start date"><input type="date" value={f.startDate} onChange={set("startDate")} /></Field>
-      <Field label="Finish date"><input type="date" value={f.endDate} onChange={set("endDate")} /></Field>
-      <ErrorText error={error} />
-      <div className="actions">{saved && <span className="ok">Saved</span>}<button className="primary" disabled={busy}>Save changes</button></div>
-    </form>
+    <>
+      <h2 className="tool-title">Project settings</h2>
+      <Form ariaLabel="Project settings" submitLabel="Save changes"
+        initial={{ name: project.name, code: project.code ?? "", address: project.address ?? "", status: project.status, startDate: project.start_date?.slice(0, 10) ?? "", endDate: project.end_date?.slice(0, 10) ?? "" }}
+        fields={[
+          { name: "name", label: "Project name", required: true },
+          { name: "code", label: "Project number" },
+          { name: "address", label: "Address" },
+          { name: "status", label: "Stage", type: "select", required: true, options: ["bidding", "active", "on_hold", "closed"].map((s) => ({ value: s, label: label(s) })) },
+          { name: "startDate", label: "Start date", type: "date" },
+          { name: "endDate", label: "Finish date", type: "date" },
+        ]}
+        onSubmit={async (v) => { await api("PATCH", `/projects/${project.id}`, { name: v.name, code: v.code || null, address: v.address || null, status: v.status, startDate: v.startDate || null, endDate: v.endDate || null }); onSaved(); }} />
+      <CustomFields entityType="project" entityId={project.id} editable />
+      <section className="card">
+        <h2>Exports</h2>
+        <p className="muted">CSV files open in any spreadsheet.</p>
+        <div className="actions left wrap">
+          {["rfis", "submittals", "punch-items", "tasks", "observations", "daily-logs"].map((k) => (
+            <a key={k} className="button" href={`/api/projects/${project.id}/export/${k}.csv`}>{label(k.replace("-", "_"))}</a>
+          ))}
+          <a className="button" href={`/api/projects/${project.id}/budget.csv`}>Budget</a>
+        </div>
+      </section>
+    </>
   );
 }

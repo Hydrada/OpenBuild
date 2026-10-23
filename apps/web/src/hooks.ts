@@ -18,6 +18,10 @@ export function useApi<T = any>(path: string | null) {
     };
   }, [path, tick]);
   const reload = useCallback(() => setTick((t) => t + 1), []);
+  useEffect(() => {
+    addEventListener("openbuild:synced", reload);
+    return () => removeEventListener("openbuild:synced", reload);
+  }, [reload]);
   return { data, error, reload };
 }
 

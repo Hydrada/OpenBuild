@@ -10,7 +10,7 @@ let app: App;
 let db: Db;
 let owner: Client;
 let orgId: string;
-let ownerId: string;
+
 let projectId: string;
 let sent: { to: string; subject: string; text: string }[];
 
@@ -20,7 +20,7 @@ beforeEach(async () => {
     mailer: async (to, subject, text) => void sent.push({ to, subject, text }),
     documentTools: [{ id: "opendraft", name: "OpenDraft" }, { id: "acrobat-alt", name: "Acrobat alternative", urlTemplate: "http://tool.test/open?src={downloadUrl}&save={uploadUrl}&n={name}" }],
   }));
-  ({ client: owner, orgId, userId: ownerId } = await registerOwner(app));
+  ({ client: owner, orgId } = await registerOwner(app));
   projectId = (await owner.post(`/api/orgs/${orgId}/projects`, { name: "Harbor Tower" })).body.id;
 });
 afterEach(async () => {

@@ -1,100 +1,83 @@
-import { useState, type FormEvent } from "react";
-import { api, fmtDate } from "../api";
-import { ErrorText, Field } from "../components/ui";
+import { useState } from "react";
+import { api, fmtDate, label } from "../api";
+import { ActionButton, DataTable, ErrorText, Form, PageHead } from "../components/ui";
 import { useAction, useApi } from "../hooks";
 
-export function TeamPage({ orgId, myRole }: { orgId: string; myRole: string }) {
+interface ShareLink { text: string; url: string }
+
+function ShareBox({ link, name }: { link: ShareLink | null; name: string }) {
+  if (!link) return null;
+  return (
+    <div className="span-all notice" role="status">
+      {link.text}
+      <input readOnly value={link.url} aria-label={name} onFocus={(e) => e.target.select()} />
+    </div>
+  );
+}
+
+export function TeamPage({ orgId, myRole, myId }: { orgId: string; myRole: string; myId: string }) {
   const { data, error, reload } = useApi<{ members: any[]; invitations: any[] }>(`/orgs/${orgId}/members`);
   const projects = useApi<any[]>(`/orgs/${orgId}/projects`);
   const canInvite = myRole === "owner" || myRole === "admin";
-  const [f, setF] = useState({ email: "", orgRole: "member", projectId: "", projectRole: "contributor" });
-  const [link, setLink] = useState<string | null>(null);
-  const { busy, error: actionError, run } = useAction();
-
-  async function invite(e: FormEvent) {
-    e.preventDefault();
-    let path = "";
-    const ok = await run(async () => {
-      const r = await api("POST", `/orgs/${orgId}/invitations`, {
-        email: f.email, orgRole: f.orgRole,
-        projectId: f.projectId || null, projectRole: f.projectId ? f.projectRole : null,
-      });
-      path = r.acceptPath;
-    });
-    if (ok) {
-      setLink(`${location.origin}${path}`);
-      setF({ ...f, email: "" });
-      reload();
-    }
-  }
+  const [invite, setInvite] = useState<ShareLink | null>(null);
+  const [reset, setReset] = useState<ShareLink | null>(null);
+  const { error: actionError, run } = useAction();
 
   async function changeRole(userId: string, role: string) {
     if (await run(() => api("PATCH", `/orgs/${orgId}/members/${userId}`, { role }))) reload();
   }
+  const canAdminister = (m: any) => m.id !== myId && m.role !== "owner" && (myRole === "owner" || (myRole === "admin" && m.role === "member"));
 
   return (
     <>
-      <h1>Team</h1>
+      <PageHead title="Team" />
       {canInvite && (
-        <form className="card form-grid" onSubmit={invite} aria-label="Invite">
-          <h2 className="span-all">Invite someone</h2>
-          <Field label="Email"><input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} required /></Field>
-          <Field label="Company role">
-            <select value={f.orgRole} onChange={(e) => setF({ ...f, orgRole: e.target.value })}>
-              <option value="member">Member</option>
-              {myRole === "owner" && <option value="admin">Admin</option>}
-            </select>
-          </Field>
-          <Field label="Add to project (optional)">
-            <select value={f.projectId} onChange={(e) => setF({ ...f, projectId: e.target.value })}>
-              <option value="">None</option>
-              {projects.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </Field>
-          {f.projectId && (
-            <Field label="Project role">
-              <select value={f.projectRole} onChange={(e) => setF({ ...f, projectRole: e.target.value })}>
-                <option value="manager">Manager</option><option value="contributor">Contributor</option><option value="viewer">Viewer</option>
-              </select>
-            </Field>
-          )}
-          <ErrorText error={actionError} />
-          <div className="actions"><button className="primary" disabled={busy}>Create invitation</button></div>
-          {link && (
-            <div className="span-all notice">
-              Share this one-time link with the invitee (valid 7 days):
-              <input readOnly value={link} aria-label="Invitation link" onFocus={(e) => e.target.select()} />
-            </div>
-          )}
-        </form>
+        <Form ariaLabel="Invite" submitLabel="Create invitation" resetOnSuccess initial={{ orgRole: "member", projectRole: "contributor" }}
+          fields={[
+            { name: "email", label: "Email", type: "email", required: true },
+            { name: "company", label: "Company (e.g. subcontractor name)" },
+            { name: "orgRole", label: "Company role", type: "select", required: true, options: [{ value: "member", label: "Member" }, ...(myRole === "owner" ? [{ value: "admin", label: "Admin" }] : [])] },
+            { name: "projectId", label: "Add to project (optional)", type: "select", options: (projects.data ?? []).map((p) => ({ value: p.id, label: p.name })) },
+            { name: "projectRole", label: "Project role", type: "select", required: true, options: ["manager", "contributor", "viewer", "subcontractor"].map((r) => ({ value: r, label: label(r) })) },
+          ]}
+          onSubmit={async (v) => {
+            const r = await api("POST", `/orgs/${orgId}/invitations`, { email: v.email, company: v.company || null, orgRole: v.orgRole, projectId: v.projectId || null, projectRole: v.projectId ? v.projectRole : null });
+            setInvite({ text: r.emailSent ? "Invitation emailed. You can also share this one-time link (valid 7 days):" : "Share this one-time link with the invitee (valid 7 days):", url: `${location.origin}${r.acceptPath}` });
+            reload();
+          }}>
+          <ShareBox link={invite} name="Invitation link" />
+        </Form>
       )}
-      <ErrorText error={error} />
+      <ErrorText error={error ?? actionError} />
+      <ShareBox link={reset} name="Reset link" />
       <section className="card">
         <h2>Members</h2>
-        <table className="table">
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
-          <tbody>
-            {data?.members.map((m) => (
-              <tr key={m.id}>
-                <td>{m.name}</td><td>{m.email}</td>
-                <td>
-                  {myRole === "owner" && m.role !== "owner" ? (
-                    <select aria-label={`Company role of ${m.name}`} value={m.role} onChange={(e) => changeRole(m.id, e.target.value)}>
-                      <option value="admin">Admin</option><option value="member">Member</option>
-                    </select>
-                  ) : m.role}
-                </td>
-                <td>{fmtDate(m.created_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <DataTable rows={data?.members ?? null} caption="Members" columns={[
+          { label: "Name", render: (m) => m.name },
+          { label: "Email", render: (m) => m.email },
+          { label: "Company", render: (m) => m.company ?? "—" },
+          { label: "Role", render: (m) => myRole === "owner" && m.role !== "owner" ? (
+            <select aria-label={`Company role of ${m.name}`} value={m.role} onChange={(e) => changeRole(m.id, e.target.value)}>
+              <option value="admin">Admin</option><option value="member">Member</option>
+            </select>
+          ) : label(m.role) },
+          { label: "Joined", render: (m) => fmtDate(m.created_at) },
+          { label: "", render: (m) => canAdminister(m) && (
+            <span className="row-actions">
+              <ActionButton className="link" onClick={async () => {
+                const r = await api("POST", `/orgs/${orgId}/members/${m.id}/reset-link`);
+                setReset({ text: `${r.emailSent ? "Reset link emailed. " : ""}Password reset link for ${m.name} (valid 24 hours):`, url: `${location.origin}${r.resetPath}` });
+              }}>Reset password</ActionButton>
+              <ActionButton className="link danger" confirm={`Remove ${m.name} from the company and all its projects?`} onClick={async () => { await api("DELETE", `/orgs/${orgId}/members/${m.id}`); reload(); }}>Remove</ActionButton>
+            </span>
+          ) },
+        ]} />
         {!!data?.invitations.length && (
           <>
             <h2>Pending invitations</h2>
             <ul className="list">
               {data.invitations.map((i) => (
-                <li key={i.id}>{i.email} <span className="muted">· {i.org_role}{i.project_name && ` · ${i.project_role} on ${i.project_name}`} · expires {fmtDate(i.expires_at)}</span></li>
+                <li key={i.id}>{i.email} <span className="muted">· {label(i.org_role)}{i.company ? ` · ${i.company}` : ""}{i.project_name && ` · ${label(i.project_role)} on ${i.project_name}`} · expires {fmtDate(i.expires_at)}</span></li>
               ))}
             </ul>
           </>

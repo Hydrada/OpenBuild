@@ -118,7 +118,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
     );
     const manpowerRows = await db.query("SELECT id, company, trade, workers, hours::text, notes FROM daily_log_manpower WHERE log_id = $1 ORDER BY company", [row.id]);
     const photos = await attachmentsOf("daily_log", row.id);
-    return { ...detail, manpower: manpowerRows, photos, myRole: access.role };
+    return { ...detail, manpower: manpowerRows, photos, myRole: access.role, myId: user.id };
   });
 
   app.patch<Id>("/daily-logs/:id", async (req) => {
@@ -223,7 +223,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
          FROM inspection_items it LEFT JOIN punch_items p ON p.id = it.punch_item_id WHERE it.inspection_id = $1 ORDER BY it.seq`,
       [row.id],
     );
-    return { ...detail, items, photos: await attachmentsOf("inspection", row.id), myRole: access.role };
+    return { ...detail, items, photos: await attachmentsOf("inspection", row.id), myRole: access.role, myId: user.id };
   });
 
   /** Record a result for one checklist item. `createPunch` on a failed item opens a linked punch item. */
@@ -422,7 +422,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
     const { row, access } = await loadInProject<{ project_id: string; id: string; assignee_id: string | null; created_by: string | null }>(db, "observations", req.params.id, user.id, "read", "Observation");
     assertVisibleToSub(access, user.id, [row.assignee_id, row.created_by], "Observation");
     const [detail] = await db.query(`SELECT o.*, u.name AS assignee_name, c.name AS created_by_name FROM observations o LEFT JOIN users u ON u.id = o.assignee_id LEFT JOIN users c ON c.id = o.created_by WHERE o.id = $1`, [row.id]);
-    return { ...detail, photos: await attachmentsOf("observation", row.id), myRole: access.role };
+    return { ...detail, photos: await attachmentsOf("observation", row.id), myRole: access.role, myId: user.id };
   });
 
   app.post<Id>("/observations/:id/close", async (req) => {
@@ -489,7 +489,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string }>(db, "incidents", req.params.id, user.id, "read.full", "Incident");
     const [detail] = await db.query(`SELECT i.*, c.name AS created_by_name FROM incidents i LEFT JOIN users c ON c.id = i.created_by WHERE i.id = $1`, [row.id]);
-    return { ...detail, photos: await attachmentsOf("incident", row.id), myRole: access.role };
+    return { ...detail, photos: await attachmentsOf("incident", row.id), myRole: access.role, myId: user.id };
   });
 
   app.patch<Id>("/incidents/:id", async (req) => {
