@@ -18,5 +18,10 @@
     "name": "audit trail recorded",
     "ok": true,
     "detail": ""
+  },
+  {
+    "name": "schedule persists after restart",
+    "ok": true,
+    "detail": ""
   }
 ]

@@ -200,6 +200,25 @@ try {
     await look("inspection");
     check("inspection with failed item creates punch item", has("Punch item #1") && has("Completed"));
 
+    // ---- Schedule and milestone (GUI only)
+    await go(`/projects/${projectId}/schedule`);
+    await click("button", "Add activity", 'textbox "Activity"');
+    await type("Activity", "Door installation", "textbox");
+    await c.call("browser_type", { ...T, ref: ref(null, "Start"), text: "01052026", mode: "keystrokes" });
+    await c.call("browser_type", { ...T, ref: ref(null, "Finish (blank for milestone)"), text: "02132026", mode: "keystrokes" });
+    await click("button", "Add to schedule", "Door installation");
+    await click("button", "Add activity", 'textbox "Activity"');
+    await type("Activity", "Owner walkthrough", "textbox");
+    const soon = new Date(Date.now() + 10 * 86_400_000);
+    const mmddyyyy = `${String(soon.getMonth() + 1).padStart(2, "0")}${String(soon.getDate()).padStart(2, "0")}${soon.getFullYear()}`;
+    await c.call("browser_type", { ...T, ref: ref(null, "Start"), text: mmddyyyy, mode: "keystrokes" });
+    await click("checkbox", "Milestone");
+    await click("button", "Add to schedule", "Owner walkthrough");
+    await look("schedule");
+    check("schedule activity and milestone", has("Door installation") && has("Owner walkthrough") && has("Schedule bar chart"));
+    await go("/");
+    check("milestone on dashboard", has('link "Owner walkthrough"'));
+
     // ---- Interrupted workflow: start a change event, navigate away mid-form
     await go(`/projects/${projectId}/change-events`);
     await click("button", "New change event", 'textbox "Title"');
@@ -283,6 +302,8 @@ try {
     await go("/audit");
     await look("audit");
     check("audit trail recorded", has("invoice.lines") && has("change_order.decision") && has("drawing.revision"));
+    await go(`/projects/${projectId}/schedule`);
+    check("schedule persists after restart", has("Door installation") && has("Owner walkthrough"));
   }
 } catch (e) {
   check("flow completed without error", false, e.message.slice(0, 1500));

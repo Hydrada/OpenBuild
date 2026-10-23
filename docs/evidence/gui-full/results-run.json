@@ -7,7 +7,7 @@
   {
     "name": "create project",
     "ok": true,
-    "detail": "2ebb66f0-b906-4fc9-9a0d-2b70122123eb"
+    "detail": "ee7745ed-09c6-432d-90ba-e5a8f37d9c83"
   },
   {
     "name": "invite user",
@@ -36,6 +36,16 @@
   },
   {
     "name": "inspection with failed item creates punch item",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "schedule activity and milestone",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "milestone on dashboard",
     "ok": true,
     "detail": ""
   },
@@ -77,7 +87,7 @@
   {
     "name": "export budget CSV",
     "ok": true,
-    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\baf41598-cc04-431a-9fe1-01b412910a0c"
+    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\2bcc5b2b-517d-4844-827c-9e02c85f8b9a"
   },
   {
     "name": "add subcontractor to project (via API: dropdown)",
