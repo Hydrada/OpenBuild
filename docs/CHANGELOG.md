@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.2.0 — 2026-10-22 (unreleased)
+- Project management: schedule with activities, milestones, dependencies, bar chart and dashboard milestones.
 - Documents: drawings with revisions and markup sets, documents with versions and approvals, specifications, RFIs, submittals.
 - Field: daily logs with manpower, inspections from templates, punch list, observations, incidents, photo library, offline capture.
 - Financials: cost codes, budget (lock, transfers, EAC), contracts, change events and orders, AIA-style pay applications, CSV exports.

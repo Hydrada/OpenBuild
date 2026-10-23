@@ -146,7 +146,7 @@ export const orgRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
     // Subcontractors do not see internal task stats or the activity feed of projects they collaborate on.
     const scopeFull = `p.org_id = $1 AND ($3 OR EXISTS (SELECT 1 FROM project_memberships pm WHERE pm.project_id = p.id AND pm.user_id = $2 AND pm.role <> 'subcontractor'))`;
     const args = [req.params.orgId, user.id, seeAll];
-    const [byStatus, taskStats, myTasks, activity] = await Promise.all([
+    const [byStatus, taskStats, myTasks, activity, milestones] = await Promise.all([
       db.query(`SELECT p.status, count(*)::int AS count FROM projects p WHERE ${scope} GROUP BY p.status`, args),
       db.query(
         `SELECT count(*) FILTER (WHERE t.status <> 'done')::int AS open,
@@ -169,8 +169,15 @@ export const orgRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
           ORDER BY a.id DESC LIMIT 25`,
         args,
       ),
+      db.query(
+        `SELECT s.id, s.name, s.end_date, s.percent_complete, (s.end_date < current_date AND s.percent_complete < 100) AS late, p.id AS project_id, p.name AS project_name
+           FROM schedule_items s JOIN projects p ON p.id = s.project_id
+          WHERE ${scopeFull} AND s.is_milestone AND s.percent_complete < 100 AND s.end_date <= current_date + 60
+          ORDER BY s.end_date LIMIT 20`,
+        args,
+      ),
     ]);
-    return { role, projectsByStatus: byStatus, tasks: taskStats[0], myTasks, activity };
+    return { role, projectsByStatus: byStatus, tasks: taskStats[0], myTasks, activity, milestones };
   });
 
   app.get<OrgParams & { Querystring: { before?: string } }>("/orgs/:orgId/audit", async (req) => {

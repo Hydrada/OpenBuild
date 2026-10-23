@@ -7,7 +7,7 @@ not at feature parity (see the [sourced feature matrix](docs/FEATURE_PARITY.md))
 **Status: 0.2.0 (unreleased).** All six roadmap milestones pass their acceptance tests; read the [known limitations](docs/KNOWN_LIMITATIONS.md).
 
 ## What it does
-- **Project management:** companies, projects, roles (owner/admin/member; manager/contributor/viewer/subcontractor), invitations, tasks, dashboard, activity.
+- **Project management:** companies, projects, roles (owner/admin/member; manager/contributor/viewer/subcontractor), invitations, tasks, schedule and milestones, dashboard, activity.
 - **Documents:** drawing sheets and revisions with an inline viewer and markup sets, document versions with approval routing, specifications, RFIs, submittals.
 - **Field:** daily logs with manpower, template inspections, punch list with photo-verified close-out, safety observations, incident reports, photo library, offline capture.
 - **Financials:** cost codes, budget with transfers and estimate-at-completion, contracts, change events and orders, AIA-style pay applications with retainage.
@@ -27,8 +27,8 @@ Shared server: `docker compose up -d --build` (PostgreSQL 16). See [DEPLOYMENT.m
 
 ## Tests
 ```sh
-npm test               # 60 API tests incl. golden financial math and an authorization sweep over every route
-npm run test:e2e       # 15 Playwright browser tests incl. offline sync and an axe accessibility scan
+npm test               # 62 API tests incl. golden financial math and an authorization sweep over every route
+npm run test:e2e       # 16 Playwright browser tests incl. offline sync and an axe accessibility scan
 node scripts/smoke.mjs # install → hard kill → restart → backup → restore drill
 node scripts/load-test.mjs http://127.0.0.1:3000
 node e2e/cua/gui-full.mjs http://127.0.0.1:3200 run docs/evidence/gui-full  # real GUI via CUA Driver (then: after-restart)

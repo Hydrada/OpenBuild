@@ -17,6 +17,7 @@ import { documentRoutes } from "./routes/documents.js";
 import { fieldRoutes } from "./routes/field.js";
 import { financialRoutes } from "./routes/financials.js";
 import { rfiRoutes } from "./routes/rfis.js";
+import { scheduleRoutes } from "./routes/schedule.js";
 import { orgRoutes } from "./routes/orgs.js";
 import { projectRoutes } from "./routes/projects.js";
 
@@ -153,6 +154,7 @@ export async function buildApp(config: AppConfig) {
   await app.register(fieldRoutes(config), { prefix: "/api" });
   await app.register(financialRoutes(config), { prefix: "/api" });
   await app.register(collabRoutes(config), { prefix: "/api" });
+  await app.register(scheduleRoutes(config), { prefix: "/api" });
 
   if (config.webDist && existsSync(config.webDist)) {
     await app.register(fastifyStatic, { root: config.webDist, wildcard: false });

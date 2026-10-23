@@ -7,6 +7,7 @@ import { ActivityList } from "./Dashboard";
 import { DrawingsTool, DocumentsTool, SpecsTool } from "./tools/docs";
 import { RfisTool, SubmittalsTool } from "./tools/rfis";
 import { DailyLogsTool, IncidentsTool, InspectionsTool, ObservationsTool, PhotosTool, PunchTool } from "./tools/field";
+import { ScheduleTool } from "./tools/schedule";
 import { BudgetTool, ChangeEventsTool, ChangeOrdersTool, ContractsTool, InvoicesTool } from "./tools/financials";
 
 export interface ProjectInfo { id: string; org_id: string; name: string; code: string | null; address: string | null; status: string; start_date: string | null; end_date: string | null; myRole: string }
@@ -15,6 +16,7 @@ interface Tool { id: string; label: string; group: string; external?: boolean; r
 
 const TOOLS: Tool[] = [
   { id: "home", label: "Home", group: "Project", render: (p) => <Home project={p} /> },
+  { id: "schedule", label: "Schedule", group: "Project", render: (p) => <ScheduleTool project={p} /> },
   { id: "team", label: "Team", group: "Project", render: (p) => <Team project={p} /> },
   { id: "activity", label: "Activity", group: "Project", render: (p) => <Activity projectId={p.id} /> },
   { id: "drawings", label: "Drawings", group: "Documents", external: true, render: (p) => <DrawingsTool project={p} /> },

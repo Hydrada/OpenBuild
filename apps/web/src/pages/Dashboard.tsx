@@ -33,6 +33,19 @@ export function Dashboard({ orgId }: { orgId: string }) {
           )}
         </section>
         <section className="card">
+          <h2>Upcoming milestones</h2>
+          {!data.milestones?.length ? <Empty>No milestones in the next 60 days.</Empty> : (
+            <ul className="list">
+              {data.milestones.map((m: any) => (
+                <li key={m.id}>
+                  <Link to={`/projects/${m.project_id}/schedule`}>{m.name}</Link>
+                  <span className="muted"> · {m.project_name} · {fmtDate(m.end_date)}</span> {m.late && <span className="badge badge-rejected">Late</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section className="card">
           <h2>Recent activity</h2>
           <ActivityList items={data.activity} />
         </section>

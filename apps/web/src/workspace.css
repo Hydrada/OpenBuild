@@ -101,3 +101,17 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
   .seg { min-width: 3.4rem; padding: .7rem .8rem; }
   input, select, textarea, button { font-size: 16px; }
 }
+
+/* Schedule bar chart */
+.gantt { position: relative; display: flex; flex-direction: column; gap: .35rem; }
+.gantt-row { display: grid; grid-template-columns: 180px 1fr; align-items: center; gap: .75rem; }
+.gantt-label { font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gantt-track { position: relative; height: 1.3rem; background: #f2f4f7; border-radius: 4px; }
+.gantt-bar { position: absolute; top: .15rem; height: 1rem; background: #93c5fd; border-radius: 3px; overflow: hidden; min-width: 4px; }
+.gantt-bar.late { background: #fca5a5; }
+.gantt-bar.conflict { outline: 2px dashed #b45309; }
+.gantt-done { display: block; height: 100%; background: #1d4ed8; }
+.gantt-bar.late .gantt-done { background: #b91c1c; }
+.gantt-milestone { position: absolute; top: .2rem; width: .9rem; height: .9rem; background: #1c2330; transform: translateX(-50%) rotate(45deg); }
+.gantt-milestone.late { background: #b91c1c; }
+.gantt-today { position: absolute; top: -.15rem; bottom: -.15rem; width: 2px; background: var(--accent); z-index: 1; }

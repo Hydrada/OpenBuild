@@ -13,6 +13,7 @@ Sources:
 | Core | Company/project directory, permissions | **Done** | Org roles owner/admin/member; project roles manager/contributor/viewer/subcontractor |
 | Core | Portfolio dashboard, project home | **Done** | Status counts, open/overdue tasks, my tasks, activity |
 | Core | Tasks | **Done** | Assign, due date, status, CSV import/export |
+| Core | Schedule & milestones | **Done (basic)** | Activities, milestones, finish-to-start dependencies with loop prevention, late/conflict flags, bar chart, dashboard milestones; no critical-path calculation or P6/MS Project import |
 | Docs | Drawings | **Done** | Sheets, revisions (current set = latest), sets, issue dates, inline PDF viewer, markup sets |
 | Docs | Documents | **Done** | Folders, versions, sequential approval |
 | Docs | Specifications | **Done** | MasterFormat sections with optional PDF |

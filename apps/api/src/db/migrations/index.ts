@@ -658,4 +658,25 @@ CREATE TRIGGER audit_log_no_update BEFORE UPDATE ON audit_log FOR EACH ROW EXECU
 CREATE TRIGGER audit_log_no_delete BEFORE DELETE ON audit_log FOR EACH ROW EXECUTE FUNCTION audit_log_immutable();
 `,
   },
+  {
+    id: "0007_schedule",
+    sql: /* sql */ `
+CREATE TABLE schedule_items (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id       uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name             text NOT NULL,
+  start_date       date NOT NULL,
+  end_date         date NOT NULL,
+  is_milestone     boolean NOT NULL DEFAULT false,
+  percent_complete int NOT NULL DEFAULT 0 CHECK (percent_complete BETWEEN 0 AND 100),
+  predecessor_id   uuid REFERENCES schedule_items(id) ON DELETE SET NULL,
+  assignee_id      uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_by       uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  CHECK (end_date >= start_date),
+  CHECK (NOT is_milestone OR start_date = end_date)
+);
+CREATE INDEX schedule_items_project_idx ON schedule_items (project_id, start_date);
+`,
+  },
 ];

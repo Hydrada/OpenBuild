@@ -35,10 +35,14 @@ curl -s -H "Authorization: Bearer $KEY" -F number=A-101 -F title="Ground floor" 
 
 ## Endpoints
 
-Generated from the server's route table (135 routes). Permission checks are documented in [ARCHITECTURE.md](ARCHITECTURE.md#adr-004--permission-model-2026-10-22).
+Generated from the server's route table (139 routes). Permission checks are documented in [ARCHITECTURE.md](ARCHITECTURE.md#adr-004--permission-model-2026-10-22).
 
 | Method | Path |
 |---|---|
+| `DELETE` | `/api/schedule/:id` |
+| `PATCH` | `/api/schedule/:id` |
+| `GET` | `/api/projects/:projectId/schedule` |
+| `POST` | `/api/projects/:projectId/schedule` |
 | `POST` | `/api/approval-steps/:id/decide` |
 | `POST` | `/api/attachments` |
 | `GET` | `/api/auth/config` |
