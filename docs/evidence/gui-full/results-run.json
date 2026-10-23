@@ -1,0 +1,97 @@
+[
+  {
+    "name": "create organization",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "create project",
+    "ok": true,
+    "detail": "2ebb66f0-b906-4fc9-9a0d-2b70122123eb"
+  },
+  {
+    "name": "invite user",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "upload drawing",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "RFI answered",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "assign submittal reviewer (via API: dropdown)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "submittal reviewed",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "inspection with failed item creates punch item",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "interrupted form leaves no record",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "budget entry",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "create contract with cost-coded line (via API: dropdowns)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "approve contract in GUI",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "create and route change order (via API: dropdowns)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "approve change order in GUI",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "pay application totals",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "export budget CSV",
+    "ok": true,
+    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\baf41598-cc04-431a-9fe1-01b412910a0c"
+  },
+  {
+    "name": "add subcontractor to project (via API: dropdown)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "subcontractor cannot see financial or internal tools",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "subcontractor sees no unassigned RFIs",
+    "ok": true,
+    "detail": ""
+  }
+]

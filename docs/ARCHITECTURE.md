@@ -17,7 +17,9 @@ browser ──HTTPS──> Fastify API (apps/api) ──SQL──> PostgreSQL 16
 | Auth | scrypt password hashes, random session tokens (only SHA-256 stored), httpOnly SameSite=Lax cookie | `lib/security.ts`, `routes/auth.ts` |
 | Authorization | Org roles + project roles, checked server-side on every route | `lib/permissions.ts` |
 | Audit | Append-only `audit_log` written in the same transaction as each change | `lib/audit.ts` |
-| Tests | Vitest (API, in-memory PGlite), Playwright (browser), CUA Driver (real GUI) | `apps/api/test`, `e2e/` |
+| Files | Local-disk blob store behind a `Storage` interface; server-generated keys; metadata in `files` | `lib/storage.ts`, `lib/uploads.ts` |
+| Offline | App-shell service worker + client outbox with `clientId` replay protection | `apps/web/public/sw.js`, `apps/web/src/offline.ts` |
+| Tests | Vitest (60 API tests incl. a route-inventory security sweep; PGlite locally, PostgreSQL 16 in CI), Playwright (15 browser acceptance tests + axe), CUA Driver (real GUI), install/recovery drill, load test | `apps/api/test`, `e2e/`, `scripts/` |
 
 ## Architecture decision records
 
@@ -48,3 +50,34 @@ OpenBuild does not reimplement PDF markup. It stores drawings and documents and 
 
 ### ADR-008 — License: MIT (2026-10-22)
 All runtime dependencies are MIT/ISC/BSD/Apache-2.0/BlueOak (MPL-2.0 appears only in build tooling: lightningcss). MIT matches the published OpenDraft project. **Owner decision before public release:** AGPL-3.0 would require hosted forks to publish their changes; switching is easy while the owner is the only contributor.
+
+### ADR-009 — Subcontractor collaborators (2026-10-22)
+External companies get the project role `subcontractor`: they can read drawings and specifications and only the RFIs, submittals,
+punch items and observations they are assigned to (or created). Internal tools (daily logs, financials, documents, team, activity,
+inspections, incidents, exports) require the separate `read.full` action. They can answer their RFIs, decide their submittal
+reviews, upload photos and attach them to their own items, and mark punch items ready for review. Company name is stored on the
+membership. A route-inventory test proves the restrictions cover every endpoint.
+
+### ADR-010 — Offline field capture (2026-10-22)
+Field creates (daily logs, punch items, observations, incidents, inspections) carry a client-generated `clientId`. If the network
+is down the client stores the request in a local outbox and replays it on reconnect; the server's unique `(project_id, client_id)`
+turns any replay into a `200` returning the original row, so a request that landed before the connection dropped is never
+duplicated. A service worker caches the app shell so the tools open offline. Editing existing records offline and uploading
+photos offline are not supported yet.
+
+### ADR-011 — Approval routing (2026-10-22)
+One sequential routing engine (`approval_steps`, `lib/approvals.ts`) serves documents, submittals, change orders and invoices.
+Each submission opens a new round; only the current approver may decide; a negative decision ends the round. Change order and
+invoice approvers must be project managers or company admins. Invoice approval re-checks over-billing inside the transaction.
+
+### ADR-012 — Financial calculations (2026-10-22)
+Budget report and AIA G702/G703-style pay applications are computed server-side from source rows on every request
+(no stored totals that can drift). Formulas are documented in `lib/finance.ts` and pinned by hand-calculated golden tests.
+
+### ADR-013 — Defensive data rules in the database (2026-10-22)
+The audit log is append-only via triggers; DATE columns are returned as `YYYY-MM-DD` strings and NUMERIC as strings by both drivers,
+so neither money nor calendar dates pass through lossy JavaScript types.
+
+### ADR-014 — API keys and external tools (2026-10-22)
+API keys are bearer secrets bound to one organization through an AsyncLocalStorage request scope consulted by every permission check.
+External markup tools get 2-hour, single-revision capability URLs (download + one upload) instead of user credentials.

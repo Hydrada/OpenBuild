@@ -1,6 +1,6 @@
 {
   "name": "openbuild",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "OpenBuild: open-source, self-hostable construction project management",
   "license": "MIT",

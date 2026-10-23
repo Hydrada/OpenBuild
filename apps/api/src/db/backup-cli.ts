@@ -7,7 +7,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type Backup, exportAll, importAll } from "./backup.js";
-import { createDb } from "./db.js";
+import { createDb, defaultDataPath } from "./db.js";
 import { migrate } from "./migrate.js";
 
 const [cmd, dir] = process.argv.slice(2);
@@ -15,7 +15,7 @@ if (!cmd || !dir || !["backup", "restore"].includes(cmd)) {
   console.error("Usage: backup|restore <directory>");
   process.exit(2);
 }
-const storageDir = resolve(process.env.OPENBUILD_STORAGE_DIR ?? "./data/files");
+const storageDir = resolve(process.env.OPENBUILD_STORAGE_DIR || defaultDataPath("files"));
 const db = await createDb(process.env);
 try {
   await migrate(db);

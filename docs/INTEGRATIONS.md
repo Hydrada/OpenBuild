@@ -1,4 +1,4 @@
-# Document viewer/editor integration (design, Milestone 5)
+# Document viewer/editor integration (implemented)
 
 OpenBuild owns *records* (drawings, revisions, RFIs, submittals, approvals). Markup and PDF editing belong to
 separate tools: OpenDraft (Bluebeam alternative, published) and the in-progress Acrobat alternative.
@@ -20,5 +20,10 @@ Flow:
    (never overwriting the original) and writes an audit entry.
 4. Markups can be linked to RFIs / punch items by id.
 
-Constraints: tools never receive a user session cookie, only the scoped token; uploads are virus-scanned/size-limited;
+Constraints: tools never receive a user session cookie, only the scoped token; uploads are size-limited and PDF-checked (not virus-scanned yet);
 the original sheet is immutable.
+
+## Implementation
+- `POST /api/drawing-revisions/:id/tool-session {tool}` returns `downloadUrl`, `uploadUrl` (2-hour, single-revision, one upload) and a `launchUrl` when the tool has a `urlTemplate`.
+- Tools are configured with `OPENBUILD_DOC_TOOLS`, e.g. `[{"id":"opendraft","name":"OpenDraft"},{"id":"acrobat-alt","name":"Acrobat alternative","urlTemplate":"https://pdf.example.com/open?src={downloadUrl}&save={uploadUrl}"}]`.
+- OpenDraft currently has no open-by-URL entry point, so its flow is download → mark up → "Upload markup" on the drawing page. No changes were made to the OpenDraft or Acrobat repositories.

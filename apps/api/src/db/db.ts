@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { PGlite } from "@electric-sql/pglite";
 
@@ -77,5 +78,10 @@ export async function createPgliteDb(dataDir?: string): Promise<Db> {
 
 export async function createDb(env: { DATABASE_URL?: string; PGLITE_DIR?: string }): Promise<Db> {
   if (env.DATABASE_URL) return createPostgresDb(env.DATABASE_URL);
-  return createPgliteDb(env.PGLITE_DIR ?? "./data/pglite");
+  return createPgliteDb(env.PGLITE_DIR || defaultDataPath("pglite"));
+}
+
+/** <install root>/data/<name>, independent of the working directory (src/db and dist/db sit at the same depth). */
+export function defaultDataPath(name: string): string {
+  return fileURLToPath(new URL(`../../../../data/${name}`, import.meta.url));
 }

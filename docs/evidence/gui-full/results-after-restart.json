@@ -1,0 +1,22 @@
+[
+  {
+    "name": "RFI persists after restart",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "punch item persists after restart",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "pay application persists after restart",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "audit trail recorded",
+    "ok": true,
+    "detail": ""
+  }
+]

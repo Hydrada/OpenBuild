@@ -1,44 +1,44 @@
 # OpenBuild
 
-Open-source, self-hostable construction project management: projects, teams and permissions today, with drawings, RFIs, submittals,
-field tools and financials on the [roadmap](docs/ROADMAP.md). An independent alternative to Procore; it does not claim feature parity
-(see the [sourced feature matrix](docs/FEATURE_PARITY.md)).
+Open-source, self-hostable construction project management: drawings, RFIs, submittals, daily logs, inspections, punch lists,
+budgets, change orders and pay applications, with subcontractor access. An independent alternative to Procore — not a clone and
+not at feature parity (see the [sourced feature matrix](docs/FEATURE_PARITY.md)).
 
-**Status: 0.1.0, Milestone 1 (foundation) — early, not production-ready.** Read [known limitations](docs/KNOWN_LIMITATIONS.md).
+**Status: 0.2.0 (unreleased).** All six roadmap milestones pass their acceptance tests; read the [known limitations](docs/KNOWN_LIMITATIONS.md).
 
-## What works now
-- Create an organization, sign in/out (scrypt passwords, revocable server sessions, CSRF guard, login rate limit)
-- Projects with stage, number, address and dates
-- Company roles (owner / admin / member) and project roles (manager / contributor / viewer), enforced server-side
-- One-time invitation links that add people to the company and optionally a project
-- Tasks with assignees and due dates; dashboard with overdue counts and "my tasks"
-- Append-only audit log and per-project activity feed
+## What it does
+- **Project management:** companies, projects, roles (owner/admin/member; manager/contributor/viewer/subcontractor), invitations, tasks, dashboard, activity.
+- **Documents:** drawing sheets and revisions with an inline viewer and markup sets, document versions with approval routing, specifications, RFIs, submittals.
+- **Field:** daily logs with manpower, template inspections, punch list with photo-verified close-out, safety observations, incident reports, photo library, offline capture.
+- **Financials:** cost codes, budget with transfers and estimate-at-completion, contracts, change events and orders, AIA-style pay applications with retainage.
+- **Collaboration:** comments and @mentions, notifications (in-app and email), approvals inbox, subcontractor portal.
+- **Administration:** audit log, custom fields, CSV import/export, API keys, backup/restore, password resets and session control.
 
-## Run it (no database server needed)
+## Run it
 Requires Node.js 22+.
 
 ```sh
 npm install
 npm run build
-npm start            # http://127.0.0.1:3000 — data in ./data/pglite (embedded Postgres)
+npm start            # http://127.0.0.1:3000 — embedded PostgreSQL in ./data, no database server needed
 ```
 
-Development with hot reload: `npm run dev` (API on :3000, web on :5173).
-
-To use PostgreSQL instead, set `DATABASE_URL` (see `.env.example`). Migrations run automatically at startup, or via `npm run migrate`.
+Shared server: `docker compose up -d --build` (PostgreSQL 16). See [DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Tests
 ```sh
-npm test             # API: auth, roles, org isolation, invitations, audit, restart persistence
-npm run test:e2e     # Playwright browser flow against the built server
-node e2e/cua/gui-flow.mjs http://127.0.0.1:3200 setup docs/evidence/m1-gui          # real GUI via CUA Driver
-node e2e/cua/gui-flow.mjs http://127.0.0.1:3200 after-restart docs/evidence/m1-gui  # after restarting the server
+npm test               # 60 API tests incl. golden financial math and an authorization sweep over every route
+npm run test:e2e       # 15 Playwright browser tests incl. offline sync and an axe accessibility scan
+node scripts/smoke.mjs # install → hard kill → restart → backup → restore drill
+node scripts/load-test.mjs http://127.0.0.1:3000
+node e2e/cua/gui-full.mjs http://127.0.0.1:3200 run docs/evidence/gui-full  # real GUI via CUA Driver (then: after-restart)
 ```
-Latest GUI evidence (screenshots + results JSON): [docs/evidence/m1-gui](docs/evidence/m1-gui).
+Evidence from the latest GUI runs: [docs/evidence](docs/evidence).
 
 ## Docs
-[Architecture & decisions](docs/ARCHITECTURE.md) · [Roadmap](docs/ROADMAP.md) · [Feature matrix](docs/FEATURE_PARITY.md) ·
-[Integrations with OpenDraft / Acrobat alternative](docs/INTEGRATIONS.md) · [Known limitations](docs/KNOWN_LIMITATIONS.md)
+[Architecture & decisions](docs/ARCHITECTURE.md) · [API](docs/API.md) · [Deployment & backups](docs/DEPLOYMENT.md) · [Security](docs/SECURITY.md) ·
+[Performance](docs/PERFORMANCE.md) · [Integrations](docs/INTEGRATIONS.md) · [Roadmap](docs/ROADMAP.md) · [Feature matrix](docs/FEATURE_PARITY.md) ·
+[Known limitations](docs/KNOWN_LIMITATIONS.md) · [Changelog](docs/CHANGELOG.md)
 
 ## License
 MIT

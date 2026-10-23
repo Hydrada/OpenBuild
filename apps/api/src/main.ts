@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { buildApp } from "./app.js";
-import { createDb } from "./db/db.js";
+import { createDb, defaultDataPath } from "./db/db.js";
 import { migrate } from "./db/migrate.js";
 import { createSmtpMailer } from "./lib/mailer.js";
 import { createNotifier } from "./lib/notify.js";
@@ -18,7 +18,7 @@ const app = await buildApp({
   db,
   allowSignup: env.OPENBUILD_ALLOW_SIGNUP !== "false",
   secureCookies: env.OPENBUILD_SECURE_COOKIES === "true",
-  storage: new LocalStorage(env.OPENBUILD_STORAGE_DIR ?? "./data/files"),
+  storage: new LocalStorage(env.OPENBUILD_STORAGE_DIR || defaultDataPath("files")),
   notify: createNotifier({ baseUrl, mailer }),
   mailer,
   baseUrl,
