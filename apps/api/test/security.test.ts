@@ -65,6 +65,7 @@ beforeAll(async () => {
   const worker = (await owner.post(`/api/orgs/${orgId}/workers`, { name: "w" })).body;
   const crew = (await owner.post(`${P}/crews`, { name: "c", workerIds: [worker.id] })).body;
   const compDoc = (await owner.post(`/api/contracts/${k.id}/compliance`, { kind: "w9" })).body;
+  const dlEntry = (await owner.post(`/api/daily-logs/${log.id}/entries`, { kind: "call", description: "c" })).body;
   const waiver = (await owner.post(`/api/invoices/${inv.id}/lien-waivers`, { kind: "conditional_progress" })).body;
   const report = (await owner.post(`/api/orgs/${orgId}/reports`, { name: "r", dataset: "rfis", config: { columns: ["subject"] } })).body;
   const { ifcWithBoxes } = await import("./ifc-fixture.js");
@@ -78,7 +79,7 @@ beforeAll(async () => {
     "/drawings/": drawing.drawingId, "/drawing-revisions/": dRow.revisions[0].id, "/files/": dRow.revisions[0].file_id,
     "/documents/": doc.id, "/approval-steps/": step.id, "/rfis/": rfi.id, "/submittals/": sub.id, "/daily-logs/": log.id,
     "/inspections/": ins.id, "/punch-items/": punch.id, "/observations/": obs.id, "/incidents/": inc.id, "/contracts/": k.id,
-    "/change-events/": ce.id, "/correspondence/": corr.id, "/direct-costs/": dc.id, "/tm-tickets/": tm.id, "/equipment/": eq.id, "/action-plans/": plan.id, "/action-plan-items/": planItem.id, "/warranties/": warranty.id, "/coordination-issues/": issue.id, "/clash-runs/": clashRun.id, "/lookahead-tasks/": laTask.id, "/workers/": worker.id, "/crews/": crew.id, "/reports/": report.id, "/compliance-documents/": compDoc.id, "/lien-waivers/": waiver.id, "/change-orders/": co.id, "/invoices/": inv.id, "/tasks/": randomUUID(),
+    "/change-events/": ce.id, "/correspondence/": corr.id, "/direct-costs/": dc.id, "/tm-tickets/": tm.id, "/equipment/": eq.id, "/action-plans/": plan.id, "/action-plan-items/": planItem.id, "/warranties/": warranty.id, "/coordination-issues/": issue.id, "/clash-runs/": clashRun.id, "/lookahead-tasks/": laTask.id, "/workers/": worker.id, "/crews/": crew.id, "/reports/": report.id, "/compliance-documents/": compDoc.id, "/lien-waivers/": waiver.id, "/daily-log-entries/": dlEntry.id, "/change-orders/": co.id, "/invoices/": inv.id, "/tasks/": randomUUID(),
     "custom-fields/": field.id, "api-keys/": key.id, "/me/sessions/": randomUUID(),
   };
   outsider = (await registerOwner(app, "outsider@example.com")).client;

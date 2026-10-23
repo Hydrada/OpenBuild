@@ -1227,4 +1227,43 @@ CREATE TABLE lien_waivers (
 );
 `,
   },
+  {
+    id: "0027_photos_dailylog_sections",
+    sql: /* sql */ `
+-- Photo albums and metadata; structured daily log sections.
+CREATE TABLE photo_albums (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  created_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, name)
+);
+CREATE TABLE photo_meta (
+  file_id     uuid PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE,
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  album_id    uuid REFERENCES photo_albums(id) ON DELETE SET NULL,
+  caption     text,
+  location    text,
+  tags        text[] NOT NULL DEFAULT '{}',
+  taken_at    timestamptz
+);
+CREATE INDEX photo_meta_album ON photo_meta (project_id, album_id);
+
+CREATE TABLE daily_log_entries (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  log_id       uuid NOT NULL REFERENCES daily_logs(id) ON DELETE CASCADE,
+  kind         text NOT NULL CHECK (kind IN ('delivery','call','safety_violation','quantity','waste')),
+  at_time      text CHECK (at_time IS NULL OR at_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'),
+  party        text,
+  description  text NOT NULL,
+  quantity     numeric(14,2),
+  unit         text,
+  cost_code_id uuid REFERENCES cost_codes(id) ON DELETE SET NULL,
+  created_by   uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX daily_log_entries_log ON daily_log_entries (log_id, kind);
+`,
+  },
 ];

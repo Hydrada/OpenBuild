@@ -5,10 +5,10 @@ import { migrations } from "./migrations/index.js";
 export const TABLE_ORDER = [
   "users", "organizations", "org_memberships", "sessions", "oidc_states", "password_resets", "api_keys",
   "workers", "projects", "project_holidays", "project_memberships", "invitations", "tasks",
-  "files", "attachments", "drawings", "drawing_revisions", "markup_sets", "drawing_annotations", "tool_tokens",
+  "files", "attachments", "photo_albums", "photo_meta", "drawings", "drawing_revisions", "markup_sets", "drawing_annotations", "tool_tokens",
   "folders", "documents", "document_versions", "approval_steps", "spec_sections",
   "rfis", "rfi_responses", "submittals", "notifications", "comments",
-  "daily_logs", "daily_log_manpower", "inspection_templates", "inspections", "punch_items", "inspection_items",
+  "daily_logs", "daily_log_manpower", "daily_log_entries", "inspection_templates", "inspections", "punch_items", "inspection_items",
   "observations", "incidents",
   "cost_codes", "budget_lines", "budget_modifications", "contracts", "contract_lines",
   "change_events", "change_event_lines", "change_orders", "change_order_lines", "invoices", "invoice_lines", "contract_contacts", "compliance_documents", "lien_waivers",

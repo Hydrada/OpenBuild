@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { api, fmtBytes, fmtDate, fmtDateTime, label, today } from "../../api";
+import { api, fmtDate, fmtDateTime, label, today } from "../../api";
 import { Attachments, Comments, CustomFields, canManage, canWrite, useMemberOptions } from "../../components/records";
 import { ActionButton, Badge, Creator, DataTable, Empty, ErrorText, Form, KeyValues, Link, Loading, PageHead } from "../../components/ui";
 import { useAction, useApi } from "../../hooks";
 import { createOrQueue, updateOrQueue } from "../../offline";
 import type { ProjectInfo } from "../Project";
+import { DailyLogSections, PhotoLibrary } from "./photos";
 
 function Queued({ show }: { show: boolean }) {
   return show ? <p className="notice" role="status">You are offline — saved on this device and will sync automatically when you reconnect.</p> : null;
@@ -132,6 +133,7 @@ export function DailyLogPage({ id }: { id: string }) {
         )}
         <ErrorText error={error} />
       </section>
+      <DailyLogSections logId={log.id} projectId={log.project_id} editable={editable} />
       <Attachments title="Photos" accept="image/*" entityType="daily_log" entityId={log.id} projectId={log.project_id} files={log.photos} onChange={r.reload} canAdd={editable} />
       <Comments entityType="daily_log" entityId={log.id} projectId={log.project_id} />
     </>
@@ -490,33 +492,5 @@ export function IncidentPage({ id }: { id: string }) {
 // ---------------- Photos ----------------
 
 export function PhotosTool({ project }: { project: ProjectInfo }) {
-  const photos = useApi<any[]>(`/projects/${project.id}/files?kind=image`);
-  const { busy, error, run } = useAction();
-  return (
-    <>
-      <div className="tool-bar">
-        <h2 className="tool-title">Photos</h2>
-        {canWrite(project.myRole) && (
-          <label className="upload button primary">
-            <span>{busy ? "Uploading…" : "Upload photos"}</span>
-            <input type="file" accept="image/*" multiple capture="environment" aria-label="Upload photos" disabled={busy}
-              onChange={(e) => { const files = e.target.files; if (files?.length) run(async () => { for (const f of files) { const fd = new FormData(); fd.append("file", f, f.name); const res = await fetch(`/api/projects/${project.id}/files`, { method: "POST", headers: { "x-openbuild-csrf": "1" }, body: fd }); if (!res.ok) throw new Error((await res.json()).error); } }).then(photos.reload); }} />
-          </label>
-        )}
-      </div>
-      <ErrorText error={error ?? photos.error} />
-      {!photos.data ? <Loading /> : photos.data.length === 0 ? <Empty>No photos yet.</Empty> : (
-        <ul className="gallery">
-          {photos.data.map((f) => (
-            <li key={f.id}>
-              <a href={`/api/files/${f.id}/download?inline=1`} target="_blank" rel="noopener"><img src={`/api/files/${f.id}/download?inline=1`} alt={f.name} loading="lazy" /></a>
-              <div className="small">{f.name}</div>
-              <div className="muted small">{fmtDateTime(f.created_at)} · {f.uploaded_by_name} · {fmtBytes(f.size)}</div>
-              {f.linked_to && <div className="small">{f.linked_to.map((l: any) => label(l.type)).join(", ")}</div>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
-  );
+  return <PhotoLibrary project={project} />;
 }

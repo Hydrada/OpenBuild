@@ -88,6 +88,19 @@ export const pdfRoutes = (_config: AppConfig): FastifyPluginAsync => async (app)
     const totalHours = l.manpower.reduce((a: number, m: J) => a + Number(m.hours), 0);
     doc.table([{ label: "Company", width: 0.32 }, { label: "Trade", width: 0.22 }, { label: "Workers", width: 0.12, align: "right" }, { label: "Hours", width: 0.12, align: "right" }, { label: "Notes", width: 0.22 }],
       [...l.manpower.map((m: J) => [m.company, m.trade ?? "", m.workers, m.hours, m.notes ?? ""]), ["Total", "", totalWorkers, totalHours.toFixed(2), ""]], { boldLast: true });
+    const sec = await asCaller(req, `/api/daily-logs/${req.params.id}/sections`);
+    const kinds: [string, string][] = [["delivery", "Deliveries"], ["call", "Calls"], ["safety_violation", "Safety violations"], ["quantity", "Quantities installed"], ["waste", "Waste removed"]];
+    for (const [k, title] of kinds) {
+      const rows = sec.entries.filter((e: J) => e.kind === k);
+      if (!rows.length) continue;
+      doc.heading(title);
+      doc.table([{ label: "Time", width: 0.1 }, { label: "Party", width: 0.24 }, { label: "Description", width: 0.42 }, { label: "Qty", width: 0.12, align: "right" }, { label: "Cost code", width: 0.12 }],
+        rows.map((e: J) => [e.at_time ?? "", e.party ?? "", e.description, e.quantity ? `${e.quantity} ${e.unit ?? ""}` : "", e.cost_code ?? ""]));
+    }
+    if (sec.equipment.length) {
+      doc.heading("Equipment on site");
+      doc.table([{ label: "Equipment", width: 0.6 }, { label: "Operated (h)", width: 0.2, align: "right" }, { label: "Idle (h)", width: 0.2, align: "right" }], sec.equipment.map((e: J) => [e.name, e.hours_operated, e.hours_idle]));
+    }
     doc.heading("Work performed").paragraph(l.work_performed);
     doc.heading("Delays").paragraph(l.delays);
     doc.heading("Visitors").paragraph(l.visitors);

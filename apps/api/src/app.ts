@@ -26,6 +26,7 @@ import { pdfRoutes } from "./routes/pdf.js";
 import { annotationRoutes } from "./routes/annotations.js";
 import { subcontractRoutes } from "./routes/subcontract.js";
 import { drawingSetRoutes } from "./routes/drawing-sets.js";
+import { photoRoutes } from "./routes/photos.js";
 import { bimRoutes } from "./routes/bim.js";
 import { collabRoutes } from "./routes/collab.js";
 import { documentRoutes } from "./routes/documents.js";
@@ -187,6 +188,7 @@ export async function buildApp(config: AppConfig) {
   await app.register(annotationRoutes(config), { prefix: "/api" });
   await app.register(subcontractRoutes(config), { prefix: "/api" });
   await app.register(drawingSetRoutes(config), { prefix: "/api" });
+  await app.register(photoRoutes(config), { prefix: "/api" });
   await app.register(oidcRoutes(config), { prefix: "/api" });
   await app.register(samlRoutes(config), { prefix: "/api" });
 

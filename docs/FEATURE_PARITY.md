@@ -27,11 +27,11 @@ Sources:
 | Docs | Coordination issues | **Done** | Raise from a clash run (one per clash, duplicates skipped) or manually; assignee → ready for review → closed by author/manager; attachments, comments, subcontractor scoping |
 | Docs | Warranties | **Done** | Register by system and warrantor with start/end, expiring (60 days) and expired flags, documents |
 | Docs | Models (BIM) | **Done** | IFC versions with element counts/changes, in-browser 3D viewer (web-ifc + three.js), clash detection between models (bounding-box candidates confirmed by exact triangle intersection and containment, plus clearance/soft clashes measured by surface distance) with stored runs and red highlighting in 3D |
-| Field | Daily log | **Done** | Weather, temps, work, delays, visitors, manpower (decimal hours), photos, sign-off lock |
+| Field | Daily log | **Done** | Weather, temps, work, delays, visitors, manpower (decimal hours), photos, sign-off lock; deliveries, calls, safety violations, quantities installed (by cost code) and waste sections, plus the day's equipment hours and entered time pulled in automatically; all in the PDF |
 | Field | Inspections | **Done** | Templates, pass/fail/N-A, failed item → punch item, completion rule |
 | Field | Punch list | **Done** | Assign, ready-for-review → verify with photo, CSV import |
 | Field | Observations, incidents | **Done** | Severity, assignee, resolution; OSHA recordable/lost time, investigation, corrective action required to close |
-| Field | Photos | **Done** | Library, camera capture on mobile, attach to records |
+| Field | Photos | **Done** | Library, camera capture on mobile, attach to records; albums, captions, locations, tags and capture date from EXIF, with album/tag/date filters |
 | Field | Offline capture | **Done** | Creates (replay-safe `clientId`), queued edits to daily logs, inspection results and punch status, and photos held in IndexedDB until reconnect |
 | Field | T&M tickets | **Done** | Labor/material/equipment lines (qty × rate, half-even), field signature, submit → approve/reject, one-click change event per cost code, signed-ticket attachments |
 | Field | Equipment | **Done** | Register (owned/rented/sub), status, daily operated/idle hours by cost code with a 24 h/day cap, operating cost at the hourly rate |
