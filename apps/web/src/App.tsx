@@ -19,6 +19,7 @@ import { MeetingPage } from "./pages/tools/meetings";
 import { ModelPage } from "./pages/tools/models";
 import { RfiPage, SubmittalPage } from "./pages/tools/rfis";
 import { ActionPlanPage, CoordinationIssuePage, WarrantyPage } from "./pages/tools/closeout";
+import { ReportsPage, SavedReportPage } from "./pages/Reports";
 import { CorrespondencePage, EquipmentPage, TmTicketPage } from "./pages/tools/project-tools";
 import { match, navigate, usePath } from "./router";
 
@@ -45,6 +46,7 @@ const DETAIL: [string, (id: string) => JSX.Element][] = [
   ["correspondence", (id) => <CorrespondencePage id={id} />],
   ["tm-tickets", (id) => <TmTicketPage id={id} />],
   ["equipment", (id) => <EquipmentPage id={id} />],
+  ["reports", (id) => <SavedReportPage id={id} />],
   ["action-plans", (id) => <ActionPlanPage id={id} />],
   ["warranties", (id) => <WarrantyPage id={id} />],
   ["coordination-issues", (id) => <CoordinationIssuePage id={id} />],
@@ -133,11 +135,12 @@ export function App() {
   else if (path === "/bidders") page = <BiddersPage orgId={org.id} canReview={isAdmin} />;
   else if (path === "/notifications") page = <NotificationsPage onRead={loadUnread} />;
   else if (path === "/my-work") page = <MyWorkPage />;
+  else if (path === "/reports") page = <ReportsPage orgId={org.id} />;
   else if (path === "/account") page = <AccountPage me={me} onChange={loadMe} />;
   else page = <Dashboard key={org.id} orgId={org.id} />;
 
   const nav: [string, string][] = [
-    ["/", "Dashboard"], ["/my-work", "My work"], ["/projects", "Projects"], ["/team", "Team"], ["/bidders", "Bidders"],
+    ["/", "Dashboard"], ["/my-work", "My work"], ["/projects", "Projects"], ["/team", "Team"], ["/bidders", "Bidders"], ["/reports", "Reports"],
     ...(isAdmin ? ([["/audit", "Audit log"], ["/settings", "Settings"]] as [string, string][]) : []),
   ];
   const active = (to: string) => (to === "/" ? path === "/" : path.startsWith(to));

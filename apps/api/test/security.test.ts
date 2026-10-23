@@ -64,6 +64,7 @@ beforeAll(async () => {
   const laTask = (await owner.post(`${P}/lookahead-tasks`, { name: "t", startDate: "2026-10-05", endDate: "2026-10-05" })).body;
   const worker = (await owner.post(`/api/orgs/${orgId}/workers`, { name: "w" })).body;
   const crew = (await owner.post(`${P}/crews`, { name: "c", workerIds: [worker.id] })).body;
+  const report = (await owner.post(`/api/orgs/${orgId}/reports`, { name: "r", dataset: "rfis", config: { columns: ["subject"] } })).body;
   const { ifcWithBoxes } = await import("./ifc-fixture.js");
   const mA = (await owner.upload(`${P}/models`, { name: "A" }, { name: "a.ifc", type: "application/octet-stream", data: ifcWithBoxes([{ name: "B1", x: 0, y: 0, z: 0, dx: 1, dy: 1, dz: 1 }]) })).body;
   const mB = (await owner.upload(`${P}/models`, { name: "B" }, { name: "b.ifc", type: "application/octet-stream", data: ifcWithBoxes([{ name: "D1", x: 0.5, y: 0, z: 0, dx: 1, dy: 1, dz: 1 }]) })).body;
@@ -75,7 +76,7 @@ beforeAll(async () => {
     "/drawings/": drawing.drawingId, "/drawing-revisions/": dRow.revisions[0].id, "/files/": dRow.revisions[0].file_id,
     "/documents/": doc.id, "/approval-steps/": step.id, "/rfis/": rfi.id, "/submittals/": sub.id, "/daily-logs/": log.id,
     "/inspections/": ins.id, "/punch-items/": punch.id, "/observations/": obs.id, "/incidents/": inc.id, "/contracts/": k.id,
-    "/change-events/": ce.id, "/correspondence/": corr.id, "/direct-costs/": dc.id, "/tm-tickets/": tm.id, "/equipment/": eq.id, "/action-plans/": plan.id, "/action-plan-items/": planItem.id, "/warranties/": warranty.id, "/coordination-issues/": issue.id, "/clash-runs/": clashRun.id, "/lookahead-tasks/": laTask.id, "/workers/": worker.id, "/crews/": crew.id, "/change-orders/": co.id, "/invoices/": inv.id, "/tasks/": randomUUID(),
+    "/change-events/": ce.id, "/correspondence/": corr.id, "/direct-costs/": dc.id, "/tm-tickets/": tm.id, "/equipment/": eq.id, "/action-plans/": plan.id, "/action-plan-items/": planItem.id, "/warranties/": warranty.id, "/coordination-issues/": issue.id, "/clash-runs/": clashRun.id, "/lookahead-tasks/": laTask.id, "/workers/": worker.id, "/crews/": crew.id, "/reports/": report.id, "/change-orders/": co.id, "/invoices/": inv.id, "/tasks/": randomUUID(),
     "custom-fields/": field.id, "api-keys/": key.id, "/me/sessions/": randomUUID(),
   };
   outsider = (await registerOwner(app, "outsider@example.com")).client;
@@ -123,6 +124,7 @@ describe("authorization sweep over every route", () => {
     for (const r of app.routeList) {
       if (!r.url.startsWith("/api/") || PUBLIC.includes(`${r.method} ${r.url}`) || r.url.startsWith("/api/me") || r.url.startsWith("/api/auth/")) continue;
       if (r.url === "/api/comments" || r.url === "/api/attachments") continue; // body-addressed; covered below
+      if (r.url === "/api/reports/datasets") continue; // static column catalogue, identical for every signed-in user
       tested++;
       const url = fill(r.url, true);
       const res = await app.inject({ method: r.method as "GET", url, payload: r.method === "GET" || r.method === "DELETE" ? undefined : {}, headers: { "x-openbuild-csrf": "1", cookie: outsider.cookie } });

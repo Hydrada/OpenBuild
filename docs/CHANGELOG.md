@@ -11,6 +11,7 @@
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
 - Correspondence (transmittals, notices, instructions, letters, memos) with acknowledgements.
+- Custom reports: choose data, columns and filters, group and total, across projects; save, share and export CSV.
 - Crews: a company directory of field workers without logins; foremen enter crew time, managers approve.
 - Project-wide search; three-week lookahead with short-interval tasks.
 - Action plans with a standard closeout checklist; warranties; coordination issues raised from clash runs; payroll export with weekly overtime.

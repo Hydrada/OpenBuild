@@ -1147,4 +1147,23 @@ ALTER TABLE timesheet_entries ADD CONSTRAINT timesheet_one_person CHECK ((user_i
 UPDATE timesheet_entries SET entered_by = user_id;
 `,
   },
+  {
+    id: "0024_saved_reports",
+    sql: /* sql */ `
+-- Saved custom reports (per company; optionally pinned to one project).
+CREATE TABLE saved_reports (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  project_id  uuid REFERENCES projects(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  dataset     text NOT NULL,
+  config      jsonb NOT NULL,
+  shared      boolean NOT NULL DEFAULT false,
+  created_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX saved_reports_org ON saved_reports (org_id);
+`,
+  },
 ];

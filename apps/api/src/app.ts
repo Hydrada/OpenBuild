@@ -21,6 +21,7 @@ import { projectToolRoutes } from "./routes/project-tools.js";
 import { closeoutRoutes } from "./routes/closeout.js";
 import { searchRoutes } from "./routes/search.js";
 import { crewRoutes } from "./routes/crews.js";
+import { reportRoutes } from "./routes/reports.js";
 import { bimRoutes } from "./routes/bim.js";
 import { collabRoutes } from "./routes/collab.js";
 import { documentRoutes } from "./routes/documents.js";
@@ -177,6 +178,7 @@ export async function buildApp(config: AppConfig) {
   await app.register(closeoutRoutes(config), { prefix: "/api" });
   await app.register(searchRoutes(config), { prefix: "/api" });
   await app.register(crewRoutes(config), { prefix: "/api" });
+  await app.register(reportRoutes(config), { prefix: "/api" });
   await app.register(oidcRoutes(config), { prefix: "/api" });
   await app.register(samlRoutes(config), { prefix: "/api" });
 

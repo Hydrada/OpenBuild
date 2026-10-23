@@ -35,7 +35,7 @@ curl -s -H "Authorization: Bearer $KEY" -F number=A-101 -F title="Ground floor" 
 
 ## Endpoints
 
-Generated from the server's route table (230 routes) by `scripts/gen-api-doc.mjs`. Permission checks are documented in [ARCHITECTURE.md](ARCHITECTURE.md#adr-004--permission-model-2026-10-22).
+Generated from the server's route table (238 routes) by `scripts/gen-api-doc.mjs`. Permission checks are documented in [ARCHITECTURE.md](ARCHITECTURE.md#adr-004--permission-model-2026-10-22).
 
 | Method | Path |
 |---|---|
@@ -269,3 +269,11 @@ Generated from the server's route table (230 routes) by `scripts/gen-api-doc.mjs
 | `POST` | `/api/projects/:projectId/crews` |
 | `PATCH` | `/api/crews/:id` |
 | `POST` | `/api/projects/:projectId/timesheets/crew` |
+| `GET` | `/api/reports/datasets` |
+| `POST` | `/api/orgs/:orgId/reports/run` |
+| `GET` | `/api/orgs/:orgId/reports` |
+| `POST` | `/api/orgs/:orgId/reports` |
+| `GET` | `/api/reports/:id` |
+| `GET` | `/api/reports/:id/csv` |
+| `PATCH` | `/api/reports/:id` |
+| `DELETE` | `/api/reports/:id` |
