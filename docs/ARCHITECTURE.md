@@ -19,7 +19,7 @@ browser ──HTTPS──> Fastify API (apps/api) ──SQL──> PostgreSQL 16
 | Audit | Append-only `audit_log` written in the same transaction as each change | `lib/audit.ts` |
 | Files | Local disk or S3-compatible object storage behind a `Storage` interface; server-generated keys; metadata in `files` | `lib/storage.ts`, `lib/uploads.ts` |
 | Offline | App-shell service worker + client outbox with `clientId` replay protection | `apps/web/public/sw.js`, `apps/web/src/offline.ts` |
-| Tests | Vitest (90 API tests incl. a route-inventory security sweep; PGlite locally, PostgreSQL 16 in CI), Playwright (27 browser acceptance tests + axe), CUA Driver (real GUI), install/recovery drill, load test | `apps/api/test`, `e2e/`, `scripts/` |
+| Tests | Vitest (93 API tests incl. a route-inventory security sweep; PGlite locally, PostgreSQL 16 in CI), Playwright (28 browser acceptance tests + axe), CUA Driver (real GUI), install/recovery drill, load test | `apps/api/test`, `e2e/`, `scripts/` |
 
 ## Architecture decision records
 
@@ -85,6 +85,6 @@ External markup tools get 2-hour, single-revision capability URLs (download + on
 ### ADR-015 — BIM viewing and clash detection (2026-10-22)
 IFC geometry is read with web-ifc (MPL-2.0, used unmodified as a dependency, so compatible with the MIT licence) in the browser for the
 3D viewer (rendered with three.js, MIT, lazily loaded so other pages do not download it) and in Node for clash detection.
-Clashes are axis-aligned bounding-box overlaps beyond a tolerance between elements of two models (sweep-and-prune), stored as runs.
-This is fast and dependency-light but coarse: diagonal or curved elements can be over-reported. The CSP allows only
+Clashes are found in two stages: axis-aligned bounding-box overlaps beyond a tolerance (sweep-and-prune), then confirmed by exact
+triangle–triangle intersection (separating-axis test) or containment (ray parity), so diagonal and curved elements are not over-reported. The CSP allows only
 `'wasm-unsafe-eval'` (WebAssembly compilation), not general `eval`.
