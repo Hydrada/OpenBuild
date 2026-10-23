@@ -53,20 +53,20 @@ export function createPostgresDb(connectionString: string, schema?: string): Db 
 /** Embedded Postgres for development, tests and single-machine evaluation. `dataDir` undefined = in-memory. */
 export async function createPgliteDb(dataDir?: string): Promise<Db> {
   if (dataDir) mkdirSync(dataDir, { recursive: true });
-  const lite = new PGlite(dataDir, {
-    parsers: { 1700: (v: string) => v, 1082: (v: string) => v },
-  });
+  const lite = new PGlite(dataDir);
+  // Same conventions as the pg driver: NUMERIC and DATE stay strings.
+  const opts = { parsers: { 1700: (v: string) => v, 1082: (v: string) => v } };
   await lite.waitReady;
   return {
     driver: "pglite",
     async query(sql, params) {
-      return (await lite.query(sql, params as unknown[])).rows as never;
+      return (await lite.query(sql, params as unknown[], opts)).rows as never;
     },
     async tx(fn) {
       return lite.transaction(async (t) =>
         fn({
           async query(sql, params) {
-            return (await t.query(sql, params as unknown[])).rows as never;
+            return (await t.query(sql, params as unknown[], opts)).rows as never;
           },
         }),
       );
