@@ -50,6 +50,32 @@ describe("link types", () => {
   });
 });
 
+describe("working calendar", () => {
+  it("skips weekends and holidays in early dates and float", () => {
+    const cal = { workDays: [1, 2, 3, 4, 5], holidays: ["2026-07-03"] };
+    // Fri 2026-06-26 → 5 working days ends Thu 07-02; successor FS starts Mon 07-06 (Fri 07-03 holiday, weekend skipped).
+    const r = criticalPath([
+      { id: "A", start_date: "2026-06-26", end_date: "2026-07-02" },
+      { id: "B", start_date: "2026-06-29", end_date: "2026-06-30" },
+    ], [{ successor_id: "B", predecessor_id: "A", lag_days: 0, link_type: "FS" }], cal);
+    expect(r.get("B")).toMatchObject({ early_start: "2026-07-06", early_finish: "2026-07-07" });
+    // A planned start on Saturday snaps to Monday.
+    const s = criticalPath([{ id: "S", start_date: "2026-07-11", end_date: "2026-07-13" }], [], cal).get("S")!;
+    expect(s.early_start).toBe("2026-07-13");
+  });
+
+  it("is configured per project and drives the schedule API", async () => {
+    const P = `/api/projects/${projectId}`;
+    expect((await owner.put(`${P}/calendar`, { workDays: [] })).status).toBe(400);
+    expect((await owner.put(`${P}/calendar`, { workDays: [1, 2, 3, 4, 5], holidays: [{ day: "2026-07-03", name: "Independence Day (observed)" }] })).status).toBe(200);
+    expect((await owner.get(`${P}/calendar`)).body).toEqual({ workDays: [1, 2, 3, 4, 5], holidays: [{ day: "2026-07-03", name: "Independence Day (observed)" }] });
+    const a = (await owner.post(`${P}/schedule`, { name: "Framing", startDate: "2026-06-26", endDate: "2026-07-02" })).body;
+    await owner.post(`${P}/schedule`, { name: "Sheathing", startDate: "2026-06-29", endDate: "2026-06-30", predecessors: [{ id: a.id }] });
+    const sheathing = (await owner.get(`${P}/schedule`)).body.find((x: { name: string }) => x.name === "Sheathing");
+    expect(sheathing.early_start).toBe("2026-07-06");
+  });
+});
+
 describe("bidder prequalification", () => {
   it("only approved companies with current insurance can be invited from the directory", async () => {
     const D = `/api/orgs/${orgId}/bidder-companies`;

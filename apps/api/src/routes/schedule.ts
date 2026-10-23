@@ -3,7 +3,7 @@ import { z } from "zod";
 import { type AppConfig, requireUser } from "../app.js";
 import type { Queryable } from "../db/db.js";
 import { audit } from "../lib/audit.js";
-import { assertAcyclic, criticalPath, type CpmLink } from "../lib/cpm.js";
+import { assertAcyclic, criticalPath, type CpmLink, type WorkCalendar } from "../lib/cpm.js";
 import { HttpError } from "../lib/errors.js";
 import { parseMsProjectXml } from "../lib/msproject.js";
 import { requireProject } from "../lib/permissions.js";
@@ -42,6 +42,36 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     );
   }
 
+  async function calendarOf(q: Queryable, projectId: string): Promise<WorkCalendar> {
+    const [p] = await q.query<{ work_days: number[] }>("SELECT work_days FROM projects WHERE id = $1", [projectId]);
+    const holidays = await q.query<{ day: string }>("SELECT day FROM project_holidays WHERE project_id = $1", [projectId]);
+    return { workDays: p!.work_days, holidays: holidays.map((h) => h.day) };
+  }
+
+  app.get<P>("/projects/:projectId/calendar", async (req) => {
+    const user = requireUser(req);
+    await requireProject(db, user.id, req.params.projectId, "read.full");
+    const [p] = await db.query<{ work_days: number[] }>("SELECT work_days FROM projects WHERE id = $1", [req.params.projectId]);
+    const holidays = await db.query("SELECT day, name FROM project_holidays WHERE project_id = $1 ORDER BY day", [req.params.projectId]);
+    return { workDays: p!.work_days, holidays };
+  });
+
+  app.put<P>("/projects/:projectId/calendar", async (req) => {
+    const user = requireUser(req);
+    const { project } = await requireProject(db, user.id, req.params.projectId, "record.manage");
+    const b = z.object({
+      workDays: z.array(z.number().int().min(0).max(6)).min(1, "At least one working day").max(7),
+      holidays: z.array(z.object({ day: z.iso.date(), name: z.string().trim().min(1).max(100) })).max(500).default([]),
+    }).parse(req.body);
+    return db.tx(async (q) => {
+      await q.query("UPDATE projects SET work_days = $2 WHERE id = $1", [project.id, [...new Set(b.workDays)].sort()]);
+      await q.query("DELETE FROM project_holidays WHERE project_id = $1", [project.id]);
+      for (const h of b.holidays) await q.query("INSERT INTO project_holidays (project_id, day, name) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [project.id, h.day, h.name]);
+      await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "schedule.calendar", entityType: "project", entityId: project.id, detail: { workDays: b.workDays, holidays: b.holidays.length } });
+      return { ok: true };
+    });
+  });
+
   /** Schedule with late/conflict flags and critical-path dates and float. */
   app.get<P>("/projects/:projectId/schedule", async (req) => {
     const user = requireUser(req);
@@ -54,7 +84,7 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
     );
     if (!rows.length) return rows;
     const links = await linksFor(db, req.params.projectId);
-    const cpm = criticalPath(rows, links);
+    const cpm = criticalPath(rows, links, await calendarOf(db, req.params.projectId));
     const byId = new Map(rows.map((r) => [r.id, r]));
     const today = new Date().toISOString().slice(0, 10);
     return rows.map((r) => {

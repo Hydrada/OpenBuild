@@ -10,6 +10,7 @@
 - Preconstruction: bid packages, bidder portal with planroom documents, leveling and award.
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
+- Working calendar per project (weekdays and holidays) used by the critical path.
 - Models: IFC model register with version element deltas.
 - Single sign-on: OpenID Connect.
 - Offline: photos queue on the device.

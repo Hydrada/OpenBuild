@@ -852,4 +852,18 @@ CREATE TABLE bidder_companies (
 ALTER TABLE bidders ADD COLUMN company_id uuid REFERENCES bidder_companies(id) ON DELETE SET NULL;
 `,
   },
+  {
+    id: "0015_work_calendar",
+    sql: /* sql */ `
+-- Per-project working calendar: which weekdays are worked (0 = Sunday … 6 = Saturday) and non-working dates.
+-- Default is every day, so existing schedules keep their dates after the upgrade.
+ALTER TABLE projects ADD COLUMN work_days int[] NOT NULL DEFAULT '{0,1,2,3,4,5,6}';
+CREATE TABLE project_holidays (
+  project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  day        date NOT NULL,
+  name       text NOT NULL,
+  PRIMARY KEY (project_id, day)
+);
+`,
+  },
 ];

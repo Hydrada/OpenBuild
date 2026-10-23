@@ -1,5 +1,5 @@
 /**
- * Critical-path method in whole calendar days. Link types (predecessor P → successor S, lag L):
+ * Critical-path method in working days (see WorkCalendar; default: every day works). Link types (predecessor P → successor S, lag L):
  *   FS: S.start ≥ P.finish + 1 + L     SS: S.start ≥ P.start + L
  *   FF: S.finish ≥ P.finish + L        SF: S.finish ≥ P.start + L
  * Early dates: forward pass from planned starts. Late dates: backward pass from the project finish.
@@ -10,8 +10,38 @@ export interface CpmItem { id: string; start_date: string; end_date: string }
 export interface CpmLink { successor_id: string; predecessor_id: string; lag_days: number; link_type?: LinkType }
 export interface CpmResult { early_start: string; early_finish: string; late_start: string; late_finish: string; total_float: number; critical: boolean }
 
-const day = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000;
-const iso = (n: number) => new Date(n * 86_400_000).toISOString().slice(0, 10);
+const calDay = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000;
+const calIso = (n: number) => new Date(n * 86_400_000).toISOString().slice(0, 10);
+
+/** Working calendar: worked weekdays (0 = Sunday) and non-working dates. Default: every day works. */
+export interface WorkCalendar { workDays: number[]; holidays: string[] }
+
+/**
+ * Maps calendar dates onto a dense working-day index so CPM can do plain arithmetic.
+ * A date that is not a working day maps to the next working day.
+ */
+function workIndex(cal: WorkCalendar | undefined, from: number, to: number) {
+  const work = new Set(cal?.workDays ?? [0, 1, 2, 3, 4, 5, 6]);
+  const off = new Set(cal?.holidays ?? []);
+  if (!work.size) throw new Error("The calendar has no working days");
+  const days: number[] = [];
+  const indexOf = new Map<number, number>();
+  for (let d = from; d <= to; d++) {
+    const ok = work.has(new Date(d * 86_400_000).getUTCDay()) && !off.has(calIso(d));
+    indexOf.set(d, days.length); // non-working days point at the next working day
+    if (ok) days.push(d);
+  }
+  return {
+    idx: (date: string) => {
+      const i = indexOf.get(calDay(date));
+      if (i === undefined) throw new Error("Date outside the scheduling window");
+      return i;
+    },
+    /** Working days in [start, end], minus one (a one-day task has duration 0). */
+    span: (start: string, end: string) => Math.max(0, (indexOf.get(calDay(end) + 1) ?? days.length) - indexOf.get(calDay(start))! - 1),
+    date: (i: number) => calIso(days[Math.max(0, Math.min(i, days.length - 1))]!),
+  };
+}
 
 /** Throws if the links contain a cycle. */
 export function assertAcyclic(ids: string[], links: { successor_id: string; predecessor_id: string }[]) {
@@ -28,12 +58,18 @@ export function assertAcyclic(ids: string[], links: { successor_id: string; pred
   ids.forEach(visit);
 }
 
-export function criticalPath(items: CpmItem[], links: CpmLink[]): Map<string, CpmResult> {
+export function criticalPath(items: CpmItem[], links: CpmLink[], calendar?: WorkCalendar): Map<string, CpmResult> {
   const ids = new Set(items.map((i) => i.id));
   const valid = links.filter((l) => ids.has(l.successor_id) && ids.has(l.predecessor_id));
   assertAcyclic([...ids], valid);
   const byId = new Map(items.map((i) => [i.id, i]));
-  const dur = new Map(items.map((i) => [i.id, day(i.end_date) - day(i.start_date)]));
+  // Window wide enough for any reasonable push-out by links and lags.
+  const lo = Math.min(...items.map((i) => calDay(i.start_date))) - 3650;
+  const hi = Math.max(...items.map((i) => calDay(i.end_date))) + 3650 + valid.reduce((n, l) => n + Math.max(0, l.lag_days), 0) * 2;
+  const W = workIndex(calendar, lo, hi);
+  const day = W.idx;
+  const iso = W.date;
+  const dur = new Map(items.map((i) => [i.id, W.span(i.start_date, i.end_date)]));
   const preds = new Map<string, CpmLink[]>();
   const succs = new Map<string, CpmLink[]>();
   for (const l of valid) {

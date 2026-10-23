@@ -41,3 +41,18 @@ test("schedule: activities, milestone, dependency conflict, dashboard milestone"
   await owner.getByRole("link", { name: "Dashboard" }).click();
   await expect(owner.getByRole("link", { name: "Top out" })).toBeVisible();
 });
+
+test("working calendar: weekends and holidays push successors", async ({ browser }) => {
+  const { api } = await import("./helpers");
+  const w = await world(browser);
+  const { owner } = w;
+  const a = await api(owner).post(`/projects/${w.projectId}/schedule`, { name: "Framing", startDate: "2026-06-26", endDate: "2026-07-02" });
+  await api(owner).post(`/projects/${w.projectId}/schedule`, { name: "Sheathing", startDate: "2026-06-29", endDate: "2026-06-30", predecessors: [{ id: a.id }] });
+  await openProject(owner, w, "Schedule");
+  await owner.getByRole("button", { name: "Working calendar" }).click();
+  await owner.getByLabel("Sat is a working day").uncheck();
+  await owner.getByLabel("Sun is a working day").uncheck();
+  await owner.getByLabel(/Non-working days/).fill("2026-07-03 Independence Day (observed)");
+  await owner.getByRole("button", { name: "Save calendar" }).click();
+  await expect(owner.getByRole("row", { name: /Sheathing/ })).toContainText(new Date("2026-07-06T00:00:00").toLocaleDateString());
+});

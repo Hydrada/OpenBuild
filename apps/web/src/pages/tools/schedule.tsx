@@ -83,6 +83,11 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
             )}
           </Creator>
         )}
+        {canManage(project.myRole) && (
+          <Creator label="Working calendar">
+            {(close) => <CalendarForm projectId={project.id} onDone={() => { close(); list.reload(); }} onCancel={close} />}
+          </Creator>
+        )}
         {writable && (
           <Creator label="Add activity">
             {(close) => (
@@ -101,10 +106,10 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
             <div className="table-wrap">
               <table className="table">
                 <caption className="sr-only">Schedule activities</caption>
-                <thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>%</th><th>Float (days)</th><th>Depends on</th><th>Responsible</th><th>Flags</th>{writable && <th />}</tr></thead>
+                <thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>%</th><th>Early start</th><th>Float (working days)</th><th>Depends on</th><th>Responsible</th><th>Flags</th>{writable && <th />}</tr></thead>
                 <tbody>
                   {items.map((i) => editing === i.id ? (
-                    <tr key={i.id}><td colSpan={writable ? 9 : 8}>
+                    <tr key={i.id}><td colSpan={writable ? 10 : 9}>
                       <Form ariaLabel={`Edit ${i.name}`} submitLabel="Save" className="flat" onCancel={() => setEditing(null)} fields={fields(i.id)}
                         initial={{ name: i.name, startDate: i.start_date, endDate: i.is_milestone ? "" : i.end_date, percentComplete: String(i.percent_complete), predecessorIds: i.predecessors.map((p) => p.id), linkType: i.predecessors[0]?.type ?? "FS", lagDays: String(i.predecessors[0]?.lagDays ?? 0), assigneeId: i.assignee_id ?? "", isMilestone: i.is_milestone }}
                         onSubmit={async (v) => { await api("PATCH", `/schedule/${i.id}`, body(v)); setEditing(null); list.reload(); }} />
@@ -115,6 +120,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
                       <td>{fmtDate(i.start_date)}</td>
                       <td>{i.is_milestone ? "—" : fmtDate(i.end_date)}</td>
                       <td>{i.percent_complete}</td>
+                      <td>{fmtDate(i.early_start)}</td>
                       <td>{i.total_float}</td>
                       <td>{i.predecessors.length ? i.predecessors.map((p) => `${p.name} (${p.type}${p.lagDays ? ` ${p.lagDays > 0 ? "+" : ""}${p.lagDays}d` : ""})`).join(", ") : "—"}</td>
                       <td>{i.assignee_name ?? "—"}</td>
@@ -138,5 +144,30 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
         </>
       )}
     </>
+  );
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const NL = String.fromCharCode(10);
+
+function CalendarForm({ projectId, onDone, onCancel }: { projectId: string; onDone: () => void; onCancel: () => void }) {
+  const cal = useApi<{ workDays: number[]; holidays: { day: string; name: string }[] }>(`/projects/${projectId}/calendar`);
+  if (!cal.data) return <Loading />;
+  return (
+    <Form ariaLabel="Working calendar" submitLabel="Save calendar" onCancel={onCancel}
+      initial={{ ...Object.fromEntries(WEEKDAYS.map((_, i) => [`d${i}`, cal.data!.workDays.includes(i)])), holidays: cal.data.holidays.map((h) => `${h.day} ${h.name}`).join(NL) }}
+      fields={[
+        ...WEEKDAYS.map((d, i) => ({ name: `d${i}`, label: `${d} is a working day`, type: "checkbox" as const })),
+        { name: "holidays", label: "Non-working days, one per line: YYYY-MM-DD Name", type: "textarea" as const },
+      ]}
+      onSubmit={async (v) => {
+        const holidays = String(v.holidays).split(NL).map((l) => l.trim()).filter(Boolean).map((l) => {
+          const m = /^(\d{4}-\d{2}-\d{2})\s+(.+)$/.exec(l);
+          if (!m) throw new Error(`Could not read "${l}" — use YYYY-MM-DD Name`);
+          return { day: m[1], name: m[2] };
+        });
+        await api("PUT", `/projects/${projectId}/calendar`, { workDays: WEEKDAYS.map((_, i) => i).filter((i) => v[`d${i}`]), holidays });
+        onDone();
+      }} />
   );
 }
