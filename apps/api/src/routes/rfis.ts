@@ -6,7 +6,7 @@ import { listSteps, startRound } from "../lib/approvals.js";
 import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { assertVisibleToSub, canWriteRecords, isSubcontractor, requireProject } from "../lib/permissions.js";
-import { assertProjectMember, loadInProject, nextNumber, toSet } from "../lib/records.js";
+import { assertProjectMember, loadInProject, nextNumber, toSet, editable } from "../lib/records.js";
 
 type P = { Params: { projectId: string } };
 type Id = { Params: { id: string } };
@@ -107,7 +107,7 @@ export const rfiRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string; number: number; assignee_id: string | null; subject: string }>(db, "rfis", req.params.id, user.id, "record.write", "RFI");
     if (row.status === "closed") throw new HttpError(409, "Reopen the RFI before editing it");
-    const b = rfiInput.partial().parse(req.body);
+    const b = editable(rfiInput).parse(req.body);
     const { sets, values } = toSet(b, RFI_COLS);
     if (b.draft === false && row.status === "draft") sets.push("status = 'open'");
     if (!sets.length) throw new HttpError(400, "Nothing to update");
@@ -221,7 +221,7 @@ export const rfiRoutes = (config: AppConfig): FastifyPluginAsync => async (app) 
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string }>(db, "submittals", req.params.id, user.id, "record.write", "Submittal");
     if (row.status !== "draft") throw new HttpError(409, "Only draft submittals can be edited");
-    const b = submittalInput.partial().parse(req.body);
+    const b = editable(submittalInput).parse(req.body);
     const { sets, values } = toSet(b, { title: "title", type: "type", specSectionId: "spec_section_id", dueDate: "due_date", reviewerIds: "reviewer_ids" });
     if (!sets.length) throw new HttpError(400, "Nothing to update");
     return db.tx(async (q) => {

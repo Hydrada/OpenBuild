@@ -11,6 +11,8 @@
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
 - Correspondence (transmittals, notices, instructions, letters, memos) with acknowledgements.
+- Action plans with a standard closeout checklist; warranties; coordination issues raised from clash runs; payroll export with weekly overtime.
+- Fixed: editing one field of a task, meeting action item, contract, change event, change order, submittal or schedule activity reset other fields (status, retainage, reason/scope, schedule impact, type, % complete) to their defaults.
 - Direct costs that feed the budget; T&M tickets that become change events; equipment register and usage log.
 - Working calendar per project (weekdays and holidays) used by the critical path.
 - Resources with daily capacity and resource levelling, with optional activity splitting; an activity can need several resources at once.

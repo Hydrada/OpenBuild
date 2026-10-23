@@ -35,7 +35,7 @@ curl -s -H "Authorization: Bearer $KEY" -F number=A-101 -F title="Ground floor" 
 
 ## Endpoints
 
-Generated from the server's route table (199 routes) by `scripts/gen-api-doc.mjs`. Permission checks are documented in [ARCHITECTURE.md](ARCHITECTURE.md#adr-004--permission-model-2026-10-22).
+Generated from the server's route table (217 routes) by `scripts/gen-api-doc.mjs`. Permission checks are documented in [ARCHITECTURE.md](ARCHITECTURE.md#adr-004--permission-model-2026-10-22).
 
 | Method | Path |
 |---|---|
@@ -238,3 +238,21 @@ Generated from the server's route table (199 routes) by `scripts/gen-api-doc.mjs
 | `GET` | `/api/equipment/:id` |
 | `PATCH` | `/api/equipment/:id` |
 | `POST` | `/api/equipment/:id/logs` |
+| `GET` | `/api/projects/:projectId/action-plans` |
+| `POST` | `/api/projects/:projectId/action-plans` |
+| `GET` | `/api/action-plans/:id` |
+| `POST` | `/api/action-plans/:id/items` |
+| `PATCH` | `/api/action-plan-items/:id` |
+| `GET` | `/api/action-plan-items/:id/files` |
+| `GET` | `/api/projects/:projectId/warranties` |
+| `POST` | `/api/projects/:projectId/warranties` |
+| `GET` | `/api/warranties/:id` |
+| `PATCH` | `/api/warranties/:id` |
+| `GET` | `/api/projects/:projectId/coordination-issues` |
+| `POST` | `/api/projects/:projectId/coordination-issues` |
+| `POST` | `/api/clash-runs/:id/issues` |
+| `GET` | `/api/coordination-issues/:id` |
+| `PATCH` | `/api/coordination-issues/:id` |
+| `GET` | `/api/projects/:projectId/timesheets/payroll` |
+| `GET` | `/api/projects/:projectId/timesheets/payroll.csv` |
+| `POST` | `/api/projects/:projectId/timesheets/mark-exported` |

@@ -8,7 +8,7 @@ import { HttpError } from "../lib/errors.js";
 import { budgetReport, computePayApp, scheduleOfValues, toCsv } from "../lib/finance.js";
 import { dec, fmt, money, nonNegativeMoney, percent, sum } from "../lib/money.js";
 import { isUuid, requireProject } from "../lib/permissions.js";
-import { assertProjectMember, loadInProject, nextNumber } from "../lib/records.js";
+import { assertProjectMember, loadInProject, nextNumber, editable } from "../lib/records.js";
 
 type P = { Params: { projectId: string } };
 type Id = { Params: { id: string } };
@@ -217,7 +217,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string }>(db, "contracts", req.params.id, user.id, "record.manage", "Contract");
     if (row.status !== "draft") throw new HttpError(409, "Approved contracts change only through change orders");
-    const b = contractInput.omit({ kind: true }).partial().parse(req.body);
+    const b = editable(contractInput.omit({ kind: true })).parse(req.body);
     return db.tx(async (q) => {
       await q.query(
         `UPDATE contracts SET title = coalesce($2, title), counterparty = coalesce($3, counterparty), retainage_percent = coalesce($4::numeric, retainage_percent),
@@ -319,7 +319,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string }>(db, "change_events", req.params.id, user.id, "record.write", "Change event");
     if (row.status !== "open") throw new HttpError(409, "Only open change events can be edited");
-    const b = ceInput.partial().extend({ status: z.enum(["open", "closed", "void"]).optional() }).parse(req.body);
+    const b = editable(ceInput).extend({ status: z.enum(["open", "closed", "void"]).optional() }).parse(req.body);
     if (b.status && b.status !== "open" && access.role !== "admin" && access.role !== "manager") throw new HttpError(403, "Only a manager can close or void a change event");
     return db.tx(async (q) => {
       await q.query(
@@ -399,7 +399,7 @@ export const financialRoutes = (config: AppConfig): FastifyPluginAsync => async 
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string }>(db, "change_orders", req.params.id, user.id, "record.write", "Change order");
     if (row.status !== "draft") throw new HttpError(409, "Only draft change orders can be edited");
-    const b = coInput.omit({ contractId: true, changeEventId: true }).partial().parse(req.body);
+    const b = editable(coInput.omit({ contractId: true, changeEventId: true })).parse(req.body);
     return db.tx(async (q) => {
       await q.query(
         `UPDATE change_orders SET title = coalesce($2, title), description = coalesce($3, description), schedule_impact_days = coalesce($4, schedule_impact_days) WHERE id = $1`,

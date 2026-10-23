@@ -5,7 +5,7 @@ import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { fmt, sum } from "../lib/money.js";
 import { requireProject } from "../lib/permissions.js";
-import { assertProjectMember, loadInProject } from "../lib/records.js";
+import { assertProjectMember, loadInProject, editable } from "../lib/records.js";
 
 type P = { Params: { projectId: string } };
 type Id = { Params: { id: string } };
@@ -91,7 +91,7 @@ export const meetingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
   app.patch<{ Params: { id: string; itemId: string } }>("/meetings/:id/items/:itemId", async (req) => {
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ id: string; project_id: string }>(db, "meetings", req.params.id, user.id, "record.write", "Meeting");
-    const b = itemInput.partial().parse(req.body);
+    const b = editable(itemInput).parse(req.body);
     return db.tx(async (q) => {
       if (b.assigneeId) await assertProjectMember(q, row.project_id, b.assigneeId);
       const [i] = await q.query(

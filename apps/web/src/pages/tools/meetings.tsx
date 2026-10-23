@@ -3,6 +3,7 @@ import { Comments, canManage, canWrite, useMemberOptions } from "../../component
 import { ActionButton, Badge, Creator, DataTable, ErrorText, Form, Loading, PageHead } from "../../components/ui";
 import { useApi } from "../../hooks";
 import type { ProjectInfo } from "../Project";
+import { PayrollExport } from "./closeout";
 
 export function MeetingsTool({ project }: { project: ProjectInfo }) {
   const list = useApi<any[]>(`/projects/${project.id}/meetings`);
@@ -135,6 +136,7 @@ export function TimesheetsTool({ project }: { project: ProjectInfo }) {
           ) },
         ]} />
       </section>
+      {data?.canApprove && <PayrollExport projectId={project.id} />}
     </>
   );
 }

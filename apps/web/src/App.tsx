@@ -18,6 +18,7 @@ import { BidPackagePage, BidPage } from "./pages/tools/bidding";
 import { MeetingPage } from "./pages/tools/meetings";
 import { ModelPage } from "./pages/tools/models";
 import { RfiPage, SubmittalPage } from "./pages/tools/rfis";
+import { ActionPlanPage, CoordinationIssuePage, WarrantyPage } from "./pages/tools/closeout";
 import { CorrespondencePage, EquipmentPage, TmTicketPage } from "./pages/tools/project-tools";
 import { match, navigate, usePath } from "./router";
 
@@ -44,6 +45,10 @@ const DETAIL: [string, (id: string) => JSX.Element][] = [
   ["correspondence", (id) => <CorrespondencePage id={id} />],
   ["tm-tickets", (id) => <TmTicketPage id={id} />],
   ["equipment", (id) => <EquipmentPage id={id} />],
+  ["action-plans", (id) => <ActionPlanPage id={id} />],
+  ["warranties", (id) => <WarrantyPage id={id} />],
+  ["coordination-issues", (id) => <CoordinationIssuePage id={id} />],
+  ["coordination_issues", (id) => <CoordinationIssuePage id={id} />],
 ];
 
 export function App() {

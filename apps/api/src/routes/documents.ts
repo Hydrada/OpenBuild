@@ -13,11 +13,12 @@ type P = { Params: { projectId: string } };
 const APPROVAL_TABLE = { document: "documents", submittal: "submittals", change_order: "change_orders", invoice: "invoices" } as const;
 type Id = { Params: { id: string } };
 
-const ATTACHABLE = ["task", "rfi", "submittal", "daily_log", "inspection", "punch_item", "observation", "incident", "change_event", "change_order", "invoice", "correspondence", "tm_ticket"] as const;
+const ATTACHABLE = ["task", "rfi", "submittal", "daily_log", "inspection", "punch_item", "observation", "incident", "change_event", "change_order", "invoice", "correspondence", "tm_ticket", "action_plan_item", "warranty", "coordination_issue"] as const;
 const ATTACH_TABLE: Record<(typeof ATTACHABLE)[number], string> = {
   task: "tasks", rfi: "rfis", submittal: "submittals", daily_log: "daily_logs", inspection: "inspections",
   punch_item: "punch_items", observation: "observations", incident: "incidents", change_event: "change_events",
   change_order: "change_orders", invoice: "invoices", correspondence: "correspondence", tm_ticket: "tm_tickets",
+  action_plan_item: "action_plan_items", warranty: "warranties", coordination_issue: "coordination_issues",
 };
 
 export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (app) => {
@@ -96,7 +97,9 @@ export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (
                        LEFT JOIN punch_items p ON a.entity_type = 'punch_item' AND p.id = a.entity_id
                        LEFT JOIN observations o ON a.entity_type = 'observation' AND o.id = a.entity_id
                        LEFT JOIN submittals s ON a.entity_type = 'submittal' AND s.id = a.entity_id
-                      WHERE a.file_id = $1 AND $2 IN (r.assignee_id, r.created_by, p.assignee_id, p.created_by, o.assignee_id, o.created_by, s.created_by)
+                       LEFT JOIN coordination_issues ci ON a.entity_type = 'coordination_issue' AND ci.id = a.entity_id
+                       LEFT JOIN action_plan_items ai ON a.entity_type = 'action_plan_item' AND ai.id = a.entity_id
+                      WHERE a.file_id = $1 AND $2 IN (r.assignee_id, r.created_by, p.assignee_id, p.created_by, o.assignee_id, o.created_by, s.created_by, ci.assignee_id, ci.created_by, ai.assignee_id)
                          OR (a.file_id = $1 AND $2 = ANY(s.reviewer_ids)))`,
       [fileId, userId],
     );

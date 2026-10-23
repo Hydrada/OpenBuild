@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState } from "react";
+import { RaiseIssues } from "./closeout";
 import { api, fmtBytes, fmtDateTime, upload } from "../../api";
 import { canWrite } from "../../components/records";
 import { Creator, DataTable, ErrorText, Form, Loading, PageHead } from "../../components/ui";
@@ -44,12 +45,12 @@ export function ModelsTool({ project }: { project: ProjectInfo }) {
           { label: "Updated", render: (m) => `${fmtDateTime(m.created_at)} · ${m.uploaded_by_name ?? ""}` },
         ]} />
       </section>
-      {(list.data?.length ?? 0) >= 2 && <ClashRunner projectId={project.id} models={list.data!} />}
+      {(list.data?.length ?? 0) >= 2 && <ClashRunner projectId={project.id} models={list.data!} writer={canWrite(project.myRole)} />}
     </>
   );
 }
 
-function ClashRunner({ projectId, models }: { projectId: string; models: any[] }) {
+function ClashRunner({ projectId, models, writer }: { projectId: string; models: any[]; writer: boolean }) {
   const runs = useApi<any[]>(`/projects/${projectId}/clashes`);
   const options = models.map((m) => ({ value: m.id, label: `${m.name} v${m.version}` }));
   return (
@@ -72,7 +73,9 @@ function ClashRunner({ projectId, models }: { projectId: string; models: any[] }
             { label: "Element B", render: (c: any) => `${c.b.name ?? c.b.id} (${c.b.type})` },
             { label: "Overlap (m)", render: (c: any) => c.overlapM.join(" × ") },
             { label: "Check", render: (c: any) => c.exact ? "Geometry" : "Bounding box" },
+            ...(writer ? [{ label: "Issue", render: (c: any) => <RaiseIssues runId={r.id} indexes={[Number(c.id)]} /> }] : []),
           ]} />
+          {writer && r.results.length > 1 && <RaiseIssues runId={r.id} indexes={r.results.map((_: unknown, i: number) => i)} label="Raise issues for every clash" />}
         </details>
       ))}
     </section>

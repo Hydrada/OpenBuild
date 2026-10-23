@@ -57,6 +57,14 @@ beforeAll(async () => {
   const dc = (await owner.post(`${P}/direct-costs`, { kind: "expense", costDate: "2026-10-01", description: "d", costCodeId: cc.id, amount: "1" })).body;
   const tm = (await owner.post(`${P}/tm-tickets`, { workDate: "2026-10-01", description: "t" })).body;
   const eq = (await owner.post(`${P}/equipment`, { name: "Crane" })).body;
+  const plan = (await owner.post(`${P}/action-plans`, { title: "Closeout", items: [{ title: "O&M" }] })).body;
+  const planItem = (await owner.get(`/api/action-plans/${plan.id}`)).body.items[0];
+  const warranty = (await owner.post(`${P}/warranties`, { item: "Roof", company: "R", startDate: "2026-01-01", endDate: "2036-01-01" })).body;
+  const issue = (await owner.post(`${P}/coordination-issues`, { title: "i" })).body;
+  const { ifcWithBoxes } = await import("./ifc-fixture.js");
+  const mA = (await owner.upload(`${P}/models`, { name: "A" }, { name: "a.ifc", type: "application/octet-stream", data: ifcWithBoxes([{ name: "B1", x: 0, y: 0, z: 0, dx: 1, dy: 1, dz: 1 }]) })).body;
+  const mB = (await owner.upload(`${P}/models`, { name: "B" }, { name: "b.ifc", type: "application/octet-stream", data: ifcWithBoxes([{ name: "D1", x: 0.5, y: 0, z: 0, dx: 1, dy: 1, dz: 1 }]) })).body;
+  const clashRun = (await owner.post(`${P}/clashes`, { modelAId: mA.modelId, modelBId: mB.modelId })).body;
   const field = (await owner.post(`/api/orgs/${orgId}/custom-fields`, { entityType: "rfi", key: "k", label: "K", type: "text" })).body;
   const key = (await owner.post(`/api/orgs/${orgId}/api-keys`, { name: "k" })).body;
   ids = {
@@ -64,7 +72,7 @@ beforeAll(async () => {
     "/drawings/": drawing.drawingId, "/drawing-revisions/": dRow.revisions[0].id, "/files/": dRow.revisions[0].file_id,
     "/documents/": doc.id, "/approval-steps/": step.id, "/rfis/": rfi.id, "/submittals/": sub.id, "/daily-logs/": log.id,
     "/inspections/": ins.id, "/punch-items/": punch.id, "/observations/": obs.id, "/incidents/": inc.id, "/contracts/": k.id,
-    "/change-events/": ce.id, "/correspondence/": corr.id, "/direct-costs/": dc.id, "/tm-tickets/": tm.id, "/equipment/": eq.id, "/change-orders/": co.id, "/invoices/": inv.id, "/tasks/": randomUUID(),
+    "/change-events/": ce.id, "/correspondence/": corr.id, "/direct-costs/": dc.id, "/tm-tickets/": tm.id, "/equipment/": eq.id, "/action-plans/": plan.id, "/action-plan-items/": planItem.id, "/warranties/": warranty.id, "/coordination-issues/": issue.id, "/clash-runs/": clashRun.id, "/change-orders/": co.id, "/invoices/": inv.id, "/tasks/": randomUUID(),
     "custom-fields/": field.id, "api-keys/": key.id, "/me/sessions/": randomUUID(),
   };
   outsider = (await registerOwner(app, "outsider@example.com")).client;

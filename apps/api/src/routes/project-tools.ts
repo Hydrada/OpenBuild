@@ -6,7 +6,7 @@ import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { D, dec, fmt, money, sum } from "../lib/money.js";
 import { isSubcontractor, projectRoleAllows, requireProject } from "../lib/permissions.js";
-import { assertProjectMember, loadInProject, toSet } from "../lib/records.js";
+import { assertProjectMember, loadInProject, toSet, editable } from "../lib/records.js";
 
 type P = { Params: { projectId: string } };
 type Id = { Params: { id: string } };
@@ -216,12 +216,13 @@ export const projectToolRoutes = (config: AppConfig): FastifyPluginAsync => asyn
     rate: money.refine((v) => !new D(v).isNeg(), "Rate cannot be negative"),
     costCodeId: z.uuid().nullable().optional(),
   });
-  const tmInput = z.object({
+  const tmFields = z.object({
     workDate: date,
     description: z.string().trim().min(1).max(2000),
     company: optText(200),
-    lines: z.array(tmLine).max(200).default([]),
+    lines: z.array(tmLine).max(200),
   });
+  const tmInput = tmFields.extend({ lines: tmFields.shape.lines.default([]) });
 
   const lineTotal = (l: { quantity: string; rate: string }) => dec(l.quantity).times(dec(l.rate));
 
@@ -287,7 +288,7 @@ export const projectToolRoutes = (config: AppConfig): FastifyPluginAsync => asyn
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ id: string; project_id: string; status: string }>(db, "tm_tickets", req.params.id, user.id, "record.write", "T&M ticket");
     if (row.status !== "draft" && row.status !== "rejected") throw new HttpError(409, "Only a draft or rejected ticket can be edited");
-    const b = tmInput.partial().parse(req.body);
+    const b = editable(tmFields).parse(req.body);
     await db.tx(async (q) => {
       const { sets, values } = toSet(b, { workDate: "work_date", description: "description", company: "company" });
       if (sets.length) await q.query(`UPDATE tm_tickets SET ${sets.join(", ")} WHERE id = $1`, [row.id, ...values]);
@@ -349,14 +350,15 @@ export const projectToolRoutes = (config: AppConfig): FastifyPluginAsync => asyn
   });
 
   // ---------- Equipment ----------
-  const eqInput = z.object({
+  const eqFields = z.object({
     name: z.string().trim().min(1).max(200),
     category: optText(100),
-    ownership: z.enum(["owned", "rented", "subcontractor"]).default("owned"),
+    ownership: z.enum(["owned", "rented", "subcontractor"]),
     identifier: optText(100),
-    hourlyRate: money.refine((v) => !new D(v).isNeg(), "Rate cannot be negative").default("0"),
-    status: z.enum(["on_site", "off_site", "down"]).default("on_site"),
+    hourlyRate: money.refine((v) => !new D(v).isNeg(), "Rate cannot be negative"),
+    status: z.enum(["on_site", "off_site", "down"]),
   });
+  const eqInput = eqFields.extend({ ownership: eqFields.shape.ownership.default("owned"), hourlyRate: eqFields.shape.hourlyRate.default("0"), status: eqFields.shape.status.default("on_site") });
 
   app.get<P>("/projects/:projectId/equipment", async (req) => {
     const user = requireUser(req);
@@ -401,7 +403,7 @@ export const projectToolRoutes = (config: AppConfig): FastifyPluginAsync => asyn
   app.patch<Id>("/equipment/:id", async (req) => {
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ id: string; project_id: string }>(db, "equipment", req.params.id, user.id, "record.write", "Equipment");
-    const b = eqInput.partial().parse(req.body);
+    const b = editable(eqFields).parse(req.body);
     const { sets, values } = toSet(b, { name: "name", category: "category", ownership: "ownership", identifier: "identifier", hourlyRate: "hourly_rate", status: "status" });
     if (!sets.length) return { ok: true };
     await db.tx(async (q) => {

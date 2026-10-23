@@ -5,7 +5,7 @@ import type { Queryable } from "../db/db.js";
 import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { assertVisibleToSub, canWriteRecords, isSubcontractor, isUuid, requireOrgRole, requireProject } from "../lib/permissions.js";
-import { assertProjectMember, loadInProject, nextNumber, toSet } from "../lib/records.js";
+import { assertProjectMember, loadInProject, nextNumber, toSet, editable } from "../lib/records.js";
 
 type P = { Params: { projectId: string } };
 type Id = { Params: { id: string } };
@@ -125,7 +125,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string }>(db, "daily_logs", req.params.id, user.id, "record.write", "Daily log");
     if (row.status === "signed") throw new HttpError(409, "A signed daily log cannot be changed");
-    const b = dailyLogInput.omit({ logDate: true, clientId: true }).partial().parse(req.body);
+    const b = editable(dailyLogInput.omit({ logDate: true, clientId: true })).parse(req.body);
     const { sets, values } = toSet(b, LOG_COLS);
     return db.tx(async (q) => {
       if (sets.length) await q.query(`UPDATE daily_logs SET ${sets.join(", ")}, updated_at = now() WHERE id = $1`, [row.id, ...values]);
@@ -330,7 +330,7 @@ export const fieldRoutes = (config: AppConfig): FastifyPluginAsync => async (app
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ project_id: string; id: string; status: string; number: number; title: string; assignee_id: string | null }>(db, "punch_items", req.params.id, user.id, "record.write", "Punch item");
     if (row.status === "closed") throw new HttpError(409, "Reopen the item before editing it");
-    const b = punchInput.omit({ clientId: true }).partial().parse(req.body);
+    const b = editable(punchInput.omit({ clientId: true })).parse(req.body);
     const { sets, values } = toSet(b, { title: "title", description: "description", location: "location", trade: "trade", assigneeId: "assignee_id", dueDate: "due_date" });
     if (!sets.length) throw new HttpError(400, "Nothing to update");
     return db.tx(async (q) => {

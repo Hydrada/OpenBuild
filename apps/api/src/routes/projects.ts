@@ -4,6 +4,7 @@ import { type AppConfig, requireUser } from "../app.js";
 import { audit } from "../lib/audit.js";
 import { HttpError } from "../lib/errors.js";
 import { isUuid, requireProject } from "../lib/permissions.js";
+import { editable } from "../lib/records.js";
 
 type ProjectParams = { Params: { projectId: string } };
 
@@ -126,7 +127,7 @@ export const projectRoutes = (config: AppConfig): FastifyPluginAsync => async (a
     const [t] = await db.query<{ project_id: string }>("SELECT project_id FROM tasks WHERE id = $1", [req.params.taskId]);
     if (!t) throw new HttpError(404, "Task not found");
     const { project } = await requireProject(db, user.id, t.project_id, "task.write");
-    const body = taskInput.partial().parse(req.body);
+    const body = editable(taskInput).parse(req.body);
     const { sets, values } = toSet(body, TASK_COLUMNS);
     if (!sets.length) throw new HttpError(400, "Nothing to update");
     return db.tx(async (q) => {

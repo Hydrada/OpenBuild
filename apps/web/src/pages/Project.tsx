@@ -11,6 +11,7 @@ import { BiddingTool } from "./tools/bidding";
 import { MeetingsTool, TimesheetsTool } from "./tools/meetings";
 import { ModelsTool } from "./tools/models";
 import { ScheduleTool } from "./tools/schedule";
+import { ActionPlansTool, CoordinationIssuesTool, WarrantiesTool } from "./tools/closeout";
 import { CorrespondenceTool, DirectCostsTool, EquipmentTool, TmTicketsTool } from "./tools/project-tools";
 import { BudgetTool, ChangeEventsTool, ChangeOrdersTool, ContractsTool, InvoicesTool } from "./tools/financials";
 
@@ -23,11 +24,14 @@ const TOOLS: Tool[] = [
   { id: "schedule", label: "Schedule", group: "Project", render: (p) => <ScheduleTool project={p} /> },
   { id: "meetings", label: "Meetings", group: "Project", render: (p) => <MeetingsTool project={p} /> },
   { id: "correspondence", label: "Correspondence", group: "Project", external: true, render: (p) => <CorrespondenceTool project={p} /> },
+  { id: "action-plans", label: "Action plans", group: "Project", external: true, render: (p) => <ActionPlansTool project={p} /> },
   { id: "team", label: "Team", group: "Project", render: (p) => <Team project={p} /> },
   { id: "activity", label: "Activity", group: "Project", render: (p) => <Activity projectId={p.id} /> },
   { id: "drawings", label: "Drawings", group: "Documents", external: true, render: (p) => <DrawingsTool project={p} /> },
   { id: "documents", label: "Documents", group: "Documents", render: (p) => <DocumentsTool project={p} /> },
   { id: "models", label: "Models (BIM)", group: "Documents", external: true, render: (p) => <ModelsTool project={p} /> },
+  { id: "coordination-issues", label: "Coordination issues", group: "Documents", external: true, render: (p) => <CoordinationIssuesTool project={p} /> },
+  { id: "warranties", label: "Warranties", group: "Documents", render: (p) => <WarrantiesTool project={p} /> },
   { id: "specs", label: "Specifications", group: "Documents", external: true, render: (p) => <SpecsTool project={p} /> },
   { id: "rfis", label: "RFIs", group: "Documents", external: true, render: (p) => <RfisTool project={p} /> },
   { id: "submittals", label: "Submittals", group: "Documents", external: true, render: (p) => <SubmittalsTool project={p} /> },

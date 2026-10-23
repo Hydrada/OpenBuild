@@ -7,7 +7,7 @@ import { assertAcyclic, criticalPath, levelResources, workingDaysIn, type CpmLin
 import { HttpError } from "../lib/errors.js";
 import { parseMsProjectXml } from "../lib/msproject.js";
 import { requireProject } from "../lib/permissions.js";
-import { assertProjectMember, loadInProject, toSet } from "../lib/records.js";
+import { assertProjectMember, loadInProject, toSet, editable } from "../lib/records.js";
 
 type P = { Params: { projectId: string } };
 type Id = { Params: { id: string } };
@@ -156,7 +156,7 @@ export const scheduleRoutes = (config: AppConfig): FastifyPluginAsync => async (
   app.patch<Id>("/schedule/:id", async (req) => {
     const user = requireUser(req);
     const { row, access } = await loadInProject<{ id: string; project_id: string; start_date: string; end_date: string; is_milestone: boolean }>(db, "schedule_items", req.params.id, user.id, "record.write", "Schedule item");
-    const b = input.partial().parse(req.body);
+    const b = editable(input).parse(req.body);
     const start = b.startDate ?? row.start_date;
     const milestone = b.isMilestone ?? row.is_milestone;
     const end = milestone ? start : b.endDate ?? row.end_date;

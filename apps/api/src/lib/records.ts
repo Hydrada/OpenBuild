@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Queryable } from "../db/db.js";
 import { HttpError } from "./errors.js";
 import { isUuid, requireProject, type ProjectAccess, type ProjectAction } from "./permissions.js";
@@ -8,6 +9,7 @@ const PROJECT_TABLES = new Set([
   "daily_logs", "inspections", "punch_items", "observations", "incidents",
   "cost_codes", "contracts", "change_events", "change_orders", "invoices", "budget_lines", "schedule_items", "schedule_resources", "meetings", "timesheet_entries", "bid_packages", "bim_models",
   "correspondence", "direct_costs", "tm_tickets", "equipment",
+  "action_plans", "action_plan_items", "warranties", "coordination_issues", "clash_runs",
 ]);
 
 /** Loads a project-scoped row and checks the caller may perform `action` on its project. 404s hide other orgs' ids. */
@@ -61,4 +63,16 @@ export function toSet(body: Record<string, unknown>, columns: Record<string, str
     sets.push(`${col} = $${values.length + 1}`);
   }
   return { sets, values };
+}
+
+/**
+ * Schema for a partial update: every field optional and **no defaults**. (zod's `.partial()` still applies
+ * `.default()` values, so a PATCH that sends one field would silently reset the others.)
+ */
+export function editable<S extends z.ZodRawShape>(schema: z.ZodObject<S>) {
+  const shape = Object.fromEntries(Object.entries(schema.shape).map(([k, v]) => {
+    const t = v as z.ZodType;
+    return [k, (t instanceof z.ZodDefault ? (t.unwrap() as z.ZodType) : t).optional()];
+  }));
+  return z.object(shape) as unknown as z.ZodObject<{ [K in keyof S]: z.ZodOptional<S[K] extends z.ZodDefault<infer I> ? I : S[K]> }>;
 }

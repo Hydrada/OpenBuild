@@ -132,7 +132,9 @@ describe("T&M tickets", () => {
     expect((await c.client.post(`/api/tm-tickets/${t.id}/status`, { status: "submitted", signedBy: "Owner rep" })).status).toBe(200);
     expect((await c.client.post(`/api/tm-tickets/${t.id}/status`, { status: "approved" })).status).toBe(403);
     expect((await owner.post(`/api/tm-tickets/${t.id}/status`, { status: "rejected" })).status).toBe(200);
-    expect((await c.client.patch(`/api/tm-tickets/${t.id}`, { description: "fixed" })).status).toBe(200);
+    const fixed = await c.client.patch(`/api/tm-tickets/${t.id}`, { description: "fixed" });
+    expect(fixed.status).toBe(200);
+    expect(fixed.body).toMatchObject({ description: "fixed", total: "10.00" }); // lines kept
   });
 });
 
@@ -143,7 +145,10 @@ describe("equipment", () => {
     expect((await owner.post(`/api/equipment/${e.id}/logs`, { logDate: "2026-10-05", hoursOperated: 7.5, hoursIdle: 1, costCodeId: cc["03-300"] })).status).toBe(201);
     expect((await owner.post(`/api/equipment/${e.id}/logs`, { logDate: "2026-10-05", hoursOperated: 16 })).status).toBe(400);
     expect((await owner.post(`/api/equipment/${e.id}/logs`, { logDate: "2026-10-06", hoursOperated: 2.25 })).status).toBe(201);
+    // A partial update changes only what was sent (no defaults re-applied).
+    expect((await owner.patch(`/api/equipment/${e.id}`, { status: "down" })).status).toBe(200);
     const d = (await owner.get(`/api/equipment/${e.id}`)).body;
+    expect(d).toMatchObject({ status: "down", ownership: "rented", hourly_rate: "112.50" });
     expect(d).toMatchObject({ hoursOperated: "9.75", operatingCost: "1096.88" }); // 9.75 × 112.50 = 1096.875 → 1096.88
     const list = (await owner.get(`${P}/equipment`)).body;
     expect(list[0]).toMatchObject({ name: "CAT 320 excavator", hours_operated: "9.75", hours_idle: "1.00", last_used: "2026-10-06" });

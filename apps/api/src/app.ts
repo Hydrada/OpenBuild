@@ -18,6 +18,7 @@ import { accountRoutes } from "./routes/account.js";
 import { authRoutes } from "./routes/auth.js";
 import { biddingRoutes } from "./routes/bidding.js";
 import { projectToolRoutes } from "./routes/project-tools.js";
+import { closeoutRoutes } from "./routes/closeout.js";
 import { bimRoutes } from "./routes/bim.js";
 import { collabRoutes } from "./routes/collab.js";
 import { documentRoutes } from "./routes/documents.js";
@@ -171,6 +172,7 @@ export async function buildApp(config: AppConfig) {
   await app.register(biddingRoutes(config), { prefix: "/api" });
   await app.register(bimRoutes(config), { prefix: "/api" });
   await app.register(projectToolRoutes(config), { prefix: "/api" });
+  await app.register(closeoutRoutes(config), { prefix: "/api" });
   await app.register(oidcRoutes(config), { prefix: "/api" });
   await app.register(samlRoutes(config), { prefix: "/api" });
 

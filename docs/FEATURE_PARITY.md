@@ -21,7 +21,10 @@ Sources:
 | Docs | Submittals | **Done** | Types, spec link, ordered reviewers, approve / as noted / revise & resubmit / reject, revisions |
 | Docs | Markup / PDF editing | **Via adapters** | Scoped links for OpenDraft and the Acrobat alternative; markups stored per revision |
 | Core | Correspondence | **Done** | Transmittals, notices, instructions, letters and memos numbered per type (TR-001…), recipients with read acknowledgement, private items, drafts, attachments, comments, close/reopen; subcontractors see only items addressed to them |
+| Core | Action plans / closeout | **Done** | Checklists by section with assignees, due dates and required documents; standard closeout template (O&Ms, as-builts, warranties, lien waivers, CO…); copy a plan between projects; progress and overdue counts; subcontractors see and complete only their items |
 | Core | Meetings | **Done** | Agenda, attendees, minutes, action items with owners and due dates, publish + notify |
+| Docs | Coordination issues | **Done** | Raise from a clash run (one per clash, duplicates skipped) or manually; assignee → ready for review → closed by author/manager; attachments, comments, subcontractor scoping |
+| Docs | Warranties | **Done** | Register by system and warrantor with start/end, expiring (60 days) and expired flags, documents |
 | Docs | Models (BIM) | **Done** | IFC versions with element counts/changes, in-browser 3D viewer (web-ifc + three.js), clash detection between models (bounding-box candidates confirmed by exact triangle intersection and containment, plus clearance/soft clashes measured by surface distance) with stored runs and red highlighting in 3D |
 | Field | Daily log | **Done** | Weather, temps, work, delays, visitors, manpower (decimal hours), photos, sign-off lock |
 | Field | Inspections | **Done** | Templates, pass/fail/N-A, failed item → punch item, completion rule |
@@ -31,7 +34,7 @@ Sources:
 | Field | Offline capture | **Done** | Creates (replay-safe `clientId`), queued edits to daily logs, inspection results and punch status, and photos held in IndexedDB until reconnect |
 | Field | T&M tickets | **Done** | Labor/material/equipment lines (qty × rate, half-even), field signature, submit → approve/reject, one-click change event per cost code, signed-ticket attachments |
 | Field | Equipment | **Done** | Register (owned/rented/sub), status, daily operated/idle hours by cost code with a 24 h/day cap, operating cost at the hourly rate |
-| Field | Timesheets | **Done (basic)** | Self-logged hours by cost code (incl. subcontractors), 24 h/day guard, manager approval, no self-approval; no payroll export |
+| Field | Timesheets | **Done** | Self-logged hours by cost code (incl. subcontractors), 24 h/day guard, manager approval, no self-approval, payroll CSV with weekly overtime (> 40 h) and sent-to-payroll marking |
 | Financials | Budget, cost codes | **Done** | CSV import, lock, transfers, revised/committed/pending/exposure/cost-to-date/EAC/over-under, CSV export |
 | Financials | Direct costs | **Done** | Expenses, vendor invoices, payroll and non-commitment sub invoices by cost code; approval by someone other than the author; approved costs feed the budget's direct costs and estimate at completion |
 | Financials | Prime contracts, commitments | **Done** | Prime, subcontracts, POs, schedule of values, retainage |

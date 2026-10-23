@@ -1019,4 +1019,72 @@ CREATE TABLE equipment_logs (
 CREATE INDEX equipment_logs_by_day ON equipment_logs (equipment_id, log_date);
 `,
   },
+  {
+    id: "0021_closeout_coordination",
+    sql: /* sql */ `
+-- Action plans (closeout and other checklists), warranties, coordination issues, payroll export lock.
+ALTER TABLE timesheet_entries ADD COLUMN exported_at timestamptz;
+
+CREATE TABLE action_plans (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title       text NOT NULL,
+  kind        text NOT NULL DEFAULT 'general' CHECK (kind IN ('closeout','quality','safety','commissioning','general')),
+  description text,
+  created_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE action_plan_items (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id      uuid NOT NULL REFERENCES action_plans(id) ON DELETE CASCADE,
+  project_id   uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  section      text NOT NULL DEFAULT 'General',
+  seq          int NOT NULL,
+  title        text NOT NULL,
+  assignee_id  uuid REFERENCES users(id) ON DELETE SET NULL,
+  due_date     date,
+  requires_file boolean NOT NULL DEFAULT false,
+  status       text NOT NULL DEFAULT 'open' CHECK (status IN ('open','done','not_applicable')),
+  notes        text,
+  completed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  completed_at timestamptz
+);
+CREATE INDEX action_plan_items_plan ON action_plan_items (plan_id, seq);
+
+CREATE TABLE warranties (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  item        text NOT NULL,
+  company     text NOT NULL,
+  spec_section text,
+  start_date  date NOT NULL,
+  end_date    date NOT NULL,
+  contact     text,
+  notes       text,
+  created_by  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  CHECK (end_date >= start_date)
+);
+
+CREATE TABLE coordination_issues (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  number       int NOT NULL,
+  title        text NOT NULL,
+  description  text,
+  type         text NOT NULL DEFAULT 'clash' CHECK (type IN ('clash','design','constructability','missing_information','other')),
+  priority     text NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high')),
+  status       text NOT NULL DEFAULT 'open' CHECK (status IN ('open','in_progress','ready_for_review','closed')),
+  assignee_id  uuid REFERENCES users(id) ON DELETE SET NULL,
+  due_date     date,
+  location     text,
+  clash_run_id uuid REFERENCES clash_runs(id) ON DELETE SET NULL,
+  elements     jsonb NOT NULL DEFAULT '[]',
+  created_by   uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  closed_at    timestamptz,
+  UNIQUE (project_id, number)
+);
+`,
+  },
 ];
