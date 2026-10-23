@@ -4,6 +4,7 @@ import { ActionButton, Badge, Creator, DataTable, ErrorText, Form, Loading, Page
 import { useApi } from "../../hooks";
 import type { ProjectInfo } from "../Project";
 import { PayrollExport } from "./closeout";
+import { CrewTime } from "./crews";
 
 export function MeetingsTool({ project }: { project: ProjectInfo }) {
   const list = useApi<any[]>(`/projects/${project.id}/meetings`);
@@ -123,7 +124,7 @@ export function TimesheetsTool({ project }: { project: ProjectInfo }) {
       <section className="card">
         <DataTable rows={data?.entries ?? null} empty="No time logged." caption="Timesheet entries" columns={[
           { label: "Date", render: (e: any) => fmtDate(e.work_date) },
-          { label: "Worker", render: (e: any) => e.worker_name },
+          { label: "Worker", render: (e: any) => <>{e.worker_name}{e.worker_id && <div className="muted small">entered by {e.entered_by_name ?? "—"}</div>}</> },
           { label: "Hours", render: (e: any) => e.hours },
           { label: "Cost code", render: (e: any) => e.cost_code ?? "—" },
           { label: "Work", render: (e: any) => e.description ?? "" },
@@ -136,6 +137,7 @@ export function TimesheetsTool({ project }: { project: ProjectInfo }) {
           ) },
         ]} />
       </section>
+      {canWrite(project.myRole) && <CrewTime project={project} onSaved={t.reload} />}
       {data?.canApprove && <PayrollExport projectId={project.id} />}
     </>
   );

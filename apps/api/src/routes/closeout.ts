@@ -378,10 +378,11 @@ export const closeoutRoutes = (config: AppConfig): FastifyPluginAsync => async (
    */
   async function payrollRows(projectId: string, from: string, to: string) {
     const entries = await db.query<{ id: string; work_date: string; hours: string; worker: string; email: string; user_id: string; cost_code: string | null; exported_at: string | null }>(
-      `SELECT t.id, t.work_date, t.hours::text, u.name AS worker, u.email, t.user_id, c.code AS cost_code, t.exported_at
-         FROM timesheet_entries t JOIN users u ON u.id = t.user_id LEFT JOIN cost_codes c ON c.id = t.cost_code_id
+      `SELECT t.id, t.work_date, t.hours::text, coalesce(u.name, wk.name) AS worker, coalesce(u.email, wk.employee_number, '') AS email,
+              coalesce(t.user_id, t.worker_id) AS user_id, c.code AS cost_code, t.exported_at
+         FROM timesheet_entries t LEFT JOIN users u ON u.id = t.user_id LEFT JOIN workers wk ON wk.id = t.worker_id LEFT JOIN cost_codes c ON c.id = t.cost_code_id
         WHERE t.project_id = $1 AND t.status = 'approved' AND t.work_date BETWEEN $2 AND $3
-        ORDER BY u.name, t.user_id, t.work_date, t.created_at`,
+        ORDER BY worker, coalesce(t.user_id, t.worker_id), t.work_date, t.created_at`,
       [projectId, from, to],
     );
     const weekOf = (d: string) => {
@@ -417,7 +418,7 @@ export const closeoutRoutes = (config: AppConfig): FastifyPluginAsync => async (
     const rows = await payrollRows(project.id, p.from, p.to);
     reply.header("Content-Type", "text/csv; charset=utf-8");
     reply.header("Content-Disposition", `attachment; filename="payroll-${p.from}-to-${p.to}.csv"`);
-    return toCsv(["Employee", "Email", "Week of", "Date", "Cost code", "Hours", "Regular", "Overtime", "Previously exported"],
+    return toCsv(["Employee", "Email / employee #", "Week of", "Date", "Cost code", "Hours", "Regular", "Overtime", "Previously exported"],
       rows.map((r) => [r.worker, r.email, r.week_of, r.work_date, r.cost_code ?? "", r.hours, r.regular, r.overtime, r.exported_at ? "yes" : ""]));
   });
 

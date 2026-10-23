@@ -129,10 +129,12 @@ export const meetingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
     const manager = access.role === "admin" || access.role === "manager";
     const d = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
     const rows = await db.query<{ hours: string; status: string }>(
-      `SELECT t.id, t.work_date, t.hours::text, t.description, t.status, t.user_id, u.name AS worker_name, c.code AS cost_code, d.name AS decided_by_name
-         FROM timesheet_entries t JOIN users u ON u.id = t.user_id LEFT JOIN cost_codes c ON c.id = t.cost_code_id LEFT JOIN users d ON d.id = t.decided_by
-        WHERE t.project_id = $1 AND ($2::uuid IS NULL OR t.user_id = $2) AND ($3::date IS NULL OR t.work_date >= $3) AND ($4::date IS NULL OR t.work_date <= $4)
-        ORDER BY t.work_date DESC, u.name`,
+      `SELECT t.id, t.work_date, t.hours::text, t.description, t.status, t.user_id, t.worker_id, coalesce(u.name, wk.name) AS worker_name,
+              c.code AS cost_code, d.name AS decided_by_name, t.entered_by, e.name AS entered_by_name
+         FROM timesheet_entries t LEFT JOIN users u ON u.id = t.user_id LEFT JOIN workers wk ON wk.id = t.worker_id
+         LEFT JOIN cost_codes c ON c.id = t.cost_code_id LEFT JOIN users d ON d.id = t.decided_by LEFT JOIN users e ON e.id = t.entered_by
+        WHERE t.project_id = $1 AND ($2::uuid IS NULL OR t.user_id = $2 OR t.entered_by = $2) AND ($3::date IS NULL OR t.work_date >= $3) AND ($4::date IS NULL OR t.work_date <= $4)
+        ORDER BY t.work_date DESC, worker_name`,
       [req.params.projectId, manager ? null : user.id, d(req.query.from), d(req.query.to)],
     );
     const approved = fmt(sum(rows.filter((r) => r.status === "approved").map((r) => r.hours)));
@@ -156,7 +158,7 @@ export const meetingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
       const [day] = await q.query<{ h: string | null }>("SELECT sum(hours)::text AS h FROM timesheet_entries WHERE project_id = $1 AND user_id = $2 AND work_date = $3 AND status <> 'rejected'", [project.id, user.id, b.workDate]);
       if (Number(day?.h ?? 0) + Number(b.hours) > 24) throw new HttpError(400, "More than 24 hours on one day");
       const [t] = await q.query<{ id: string }>(
-        `INSERT INTO timesheet_entries (project_id, user_id, work_date, cost_code_id, hours, description) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        `INSERT INTO timesheet_entries (project_id, user_id, work_date, cost_code_id, hours, description, entered_by) VALUES ($1, $2, $3, $4, $5, $6, $2) RETURNING *`,
         [project.id, user.id, b.workDate, b.costCodeId ?? null, b.hours, b.description ?? null],
       );
       await audit(q, { orgId: project.org_id, projectId: project.id, actorId: user.id, action: "timesheet.create", entityType: "timesheet_entry", entityId: t!.id, detail: { date: b.workDate, hours: b.hours } });
@@ -167,14 +169,15 @@ export const meetingRoutes = (config: AppConfig): FastifyPluginAsync => async (a
 
   app.post<Id>("/timesheets/:id/decide", async (req) => {
     const user = requireUser(req);
-    const { row, access } = await loadInProject<{ id: string; project_id: string; user_id: string; status: string }>(db, "timesheet_entries", req.params.id, user.id, "record.manage", "Timesheet entry");
+    const { row, access } = await loadInProject<{ id: string; project_id: string; user_id: string | null; entered_by: string | null; status: string }>(db, "timesheet_entries", req.params.id, user.id, "record.manage", "Timesheet entry");
     const b = z.object({ decision: z.enum(["approved", "rejected"]) }).parse(req.body);
     if (row.user_id === user.id) throw new HttpError(403, "You cannot approve your own time");
+    if (row.entered_by === user.id) throw new HttpError(403, "You cannot approve time you entered");
     if (row.status !== "submitted") throw new HttpError(409, "Already decided");
     return db.tx(async (q) => {
       await q.query("UPDATE timesheet_entries SET status = $2, decided_by = $3, decided_at = now() WHERE id = $1", [row.id, b.decision, user.id]);
       await audit(q, { orgId: access.project.org_id, projectId: row.project_id, actorId: user.id, action: `timesheet.${b.decision}`, entityType: "timesheet_entry", entityId: row.id });
-      await config.notify(q, [row.user_id], { kind: "timesheet", title: `Your time entry was ${b.decision}`, link: `/projects/${row.project_id}/timesheets`, projectId: row.project_id, actorId: user.id });
+      await config.notify(q, [row.user_id ?? row.entered_by].filter((x): x is string => !!x), { kind: "timesheet", title: `Your time entry was ${b.decision}`, link: `/projects/${row.project_id}/timesheets`, projectId: row.project_id, actorId: user.id });
       return { ok: true };
     });
   });

@@ -11,6 +11,7 @@
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
 - Correspondence (transmittals, notices, instructions, letters, memos) with acknowledgements.
+- Crews: a company directory of field workers without logins; foremen enter crew time, managers approve.
 - Project-wide search; three-week lookahead with short-interval tasks.
 - Action plans with a standard closeout checklist; warranties; coordination issues raised from clash runs; payroll export with weekly overtime.
 - Fixed: editing one field of a task, meeting action item, contract, change event, change order, submittal or schedule activity reset other fields (status, retainage, reason/scope, schedule impact, type, % complete) to their defaults.

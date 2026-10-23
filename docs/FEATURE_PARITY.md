@@ -35,7 +35,7 @@ Sources:
 | Field | Offline capture | **Done** | Creates (replay-safe `clientId`), queued edits to daily logs, inspection results and punch status, and photos held in IndexedDB until reconnect |
 | Field | T&M tickets | **Done** | Labor/material/equipment lines (qty × rate, half-even), field signature, submit → approve/reject, one-click change event per cost code, signed-ticket attachments |
 | Field | Equipment | **Done** | Register (owned/rented/sub), status, daily operated/idle hours by cost code with a 24 h/day cap, operating cost at the hourly rate |
-| Field | Timesheets | **Done** | Self-logged hours by cost code (incl. subcontractors), 24 h/day guard, manager approval, no self-approval, payroll CSV with weekly overtime (> 40 h) and sent-to-payroll marking |
+| Field | Timesheets | **Done** | Self-logged hours by cost code (incl. subcontractors), 24 h/day guard, manager approval, no self-approval, payroll CSV with weekly overtime (> 40 h) and sent-to-payroll marking; crews with a foreman entering a day's hours for field workers who have no login (company worker directory, on-site adds, enterer cannot approve) |
 | Financials | Budget, cost codes | **Done** | CSV import, lock, transfers, revised/committed/pending/exposure/cost-to-date/EAC/over-under, CSV export |
 | Financials | Direct costs | **Done** | Expenses, vendor invoices, payroll and non-commitment sub invoices by cost code; approval by someone other than the author; approved costs feed the budget's direct costs and estimate at completion |
 | Financials | Prime contracts, commitments | **Done** | Prime, subcontracts, POs, schedule of values, retainage |

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api, fmtDate, label } from "../api";
 import { ActionButton, DataTable, ErrorText, Form, PageHead } from "../components/ui";
 import { useAction, useApi } from "../hooks";
+import { WorkersDirectory } from "./tools/crews";
 
 interface ShareLink { text: string; url: string }
 
@@ -84,6 +85,7 @@ export function TeamPage({ orgId, myRole, myId }: { orgId: string; myRole: strin
           </>
         )}
       </section>
+      <WorkersDirectory orgId={orgId} canEdit={canInvite} />
     </>
   );
 }

@@ -1110,4 +1110,41 @@ CREATE TABLE lookahead_tasks (
 CREATE INDEX lookahead_tasks_window ON lookahead_tasks (project_id, start_date, end_date);
 `,
   },
+  {
+    id: "0023_crews",
+    sql: /* sql */ `
+-- Field workers without logins, project crews, and foreman-entered crew time.
+CREATE TABLE workers (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name            text NOT NULL,
+  employee_number text,
+  trade           text,
+  company         text,
+  active          boolean NOT NULL DEFAULT true,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX workers_employee_number ON workers (org_id, lower(employee_number)) WHERE employee_number IS NOT NULL;
+
+CREATE TABLE crews (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  foreman_id  uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, name)
+);
+CREATE TABLE crew_members (
+  crew_id   uuid NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
+  worker_id uuid NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  PRIMARY KEY (crew_id, worker_id)
+);
+
+ALTER TABLE timesheet_entries ALTER COLUMN user_id DROP NOT NULL;
+ALTER TABLE timesheet_entries ADD COLUMN worker_id uuid REFERENCES workers(id) ON DELETE CASCADE;
+ALTER TABLE timesheet_entries ADD COLUMN entered_by uuid REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE timesheet_entries ADD CONSTRAINT timesheet_one_person CHECK ((user_id IS NULL) <> (worker_id IS NULL));
+UPDATE timesheet_entries SET entered_by = user_id;
+`,
+  },
 ];

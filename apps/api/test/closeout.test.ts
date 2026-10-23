@@ -141,7 +141,7 @@ describe("payroll export", () => {
       ["2026-10-09", "4.00", "5.00"], ["2026-10-10", "0.00", "6.00"], ["2026-10-12", "8.00", "0.00"],
     ]);
     const csv = await owner.raw(`${P}/timesheets/payroll.csv?from=2026-10-01&to=2026-10-31`);
-    expect(csv.body.split("\r\n")[0]).toBe("Employee,Email,Week of,Date,Cost code,Hours,Regular,Overtime,Previously exported");
+    expect(csv.body.split("\r\n")[0]).toBe("Employee,Email / employee #,Week of,Date,Cost code,Hours,Regular,Overtime,Previously exported");
     expect((await owner.post(`${P}/timesheets/mark-exported`, { from: "2026-10-01", to: "2026-10-31" })).body.marked).toBe(7);
     expect((await owner.post(`${P}/timesheets/mark-exported`, { from: "2026-10-01", to: "2026-10-31" })).body.marked).toBe(0);
     expect((await owner.get(`${P}/timesheets/payroll?from=2026-10-01&to=2026-10-31`)).body.alreadyExported).toBe(7);
