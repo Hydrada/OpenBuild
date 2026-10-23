@@ -164,8 +164,9 @@ export interface BudgetRow {
  *  revised budget        = original + transfers + approved prime-contract CO lines
  *  committed costs       = approved subcontract/PO lines + their approved CO lines
  *  direct costs (to date)= work + stored materials billed on approved/paid commitment invoices
- *  estimate at completion= committed + pending cost changes + forecast_to_complete (when set),
- *                          otherwise the larger of revised budget and committed + pending
+ *                          + approved direct-cost entries (costs outside any commitment)
+ *  estimate at completion= committed + approved direct-cost entries + pending cost changes + forecast_to_complete
+ *                          (when set), otherwise the larger of revised budget and that same sum without the forecast
  *  projected over/under  = revised budget − estimate at completion (negative = over budget)
  */
 export async function budgetReport(q: Queryable, projectId: string): Promise<{ rows: BudgetRow[]; totals: Omit<BudgetRow, "cost_code_id" | "cost_code" | "description" | "forecast_to_complete"> }> {
@@ -191,7 +192,8 @@ export async function budgetReport(q: Queryable, projectId: string): Promise<{ r
             coalesce((SELECT sum(il.work_this_period + il.materials_stored)
                         FROM invoice_lines il JOIN invoices i ON i.id = il.invoice_id JOIN contracts k ON k.id = i.contract_id
                         LEFT JOIN contract_lines cl ON cl.id = il.contract_line_id LEFT JOIN change_order_lines col ON col.id = il.change_order_line_id
-                       WHERE k.kind <> 'prime' AND i.status IN ('approved','paid') AND coalesce(cl.cost_code_id, col.cost_code_id) = cc.id), 0)::text AS direct_costs
+                       WHERE k.kind <> 'prime' AND i.status IN ('approved','paid') AND coalesce(cl.cost_code_id, col.cost_code_id) = cc.id), 0)::text AS direct_costs,
+            coalesce((SELECT sum(d.amount) FROM direct_costs d WHERE d.cost_code_id = cc.id AND d.status = 'approved'), 0)::text AS direct_entries
        FROM cost_codes cc LEFT JOIN budget_lines bl ON bl.cost_code_id = cc.id
       WHERE cc.project_id = $1 ORDER BY cc.code`,
     [projectId],
@@ -215,16 +217,17 @@ export async function budgetReport(q: Queryable, projectId: string): Promise<{ r
     const revised = dec(r.original_budget).plus(dec(r.budget_modifications)).plus(dec(r.approved_changes));
     const committed = dec(r.committed_costs);
     const pendingCost = dec(r.pending_cost_changes);
+    const entries = dec(r.direct_entries);
     const eac = r.forecast_to_complete !== null
-      ? committed.plus(pendingCost).plus(dec(r.forecast_to_complete))
-      : D.max(revised, committed.plus(pendingCost));
+      ? committed.plus(entries).plus(pendingCost).plus(dec(r.forecast_to_complete))
+      : D.max(revised, committed.plus(entries).plus(pendingCost));
     return {
       cost_code_id: r.cost_code_id, cost_code: r.cost_code, description: r.description,
       original_budget: fmt(dec(r.original_budget)), budget_modifications: fmt(dec(r.budget_modifications)),
       approved_changes: fmt(dec(r.approved_changes)), revised_budget: fmt(revised),
       pending_budget_changes: fmt(dec(r.pending_budget_changes)), committed_costs: fmt(committed),
       pending_cost_changes: fmt(pendingCost), change_event_exposure: fmt(dec(r.change_event_exposure)),
-      direct_costs: fmt(dec(r.direct_costs).minus(overlap.get(r.cost_code_id) ?? 0)),
+      direct_costs: fmt(dec(r.direct_costs).minus(overlap.get(r.cost_code_id) ?? 0).plus(entries)),
       forecast_to_complete: r.forecast_to_complete === null ? null : fmt(dec(r.forecast_to_complete)),
       estimated_cost_at_completion: fmt(eac), projected_over_under: fmt(revised.minus(eac)),
     };

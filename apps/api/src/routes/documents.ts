@@ -13,11 +13,11 @@ type P = { Params: { projectId: string } };
 const APPROVAL_TABLE = { document: "documents", submittal: "submittals", change_order: "change_orders", invoice: "invoices" } as const;
 type Id = { Params: { id: string } };
 
-const ATTACHABLE = ["task", "rfi", "submittal", "daily_log", "inspection", "punch_item", "observation", "incident", "change_event", "change_order", "invoice"] as const;
+const ATTACHABLE = ["task", "rfi", "submittal", "daily_log", "inspection", "punch_item", "observation", "incident", "change_event", "change_order", "invoice", "correspondence", "tm_ticket"] as const;
 const ATTACH_TABLE: Record<(typeof ATTACHABLE)[number], string> = {
   task: "tasks", rfi: "rfis", submittal: "submittals", daily_log: "daily_logs", inspection: "inspections",
   punch_item: "punch_items", observation: "observations", incident: "incidents", change_event: "change_events",
-  change_order: "change_orders", invoice: "invoices",
+  change_order: "change_orders", invoice: "invoices", correspondence: "correspondence", tm_ticket: "tm_tickets",
 };
 
 export const documentRoutes = (config: AppConfig): FastifyPluginAsync => async (app) => {

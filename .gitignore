@@ -8,3 +8,8 @@ playwright-report/
 .env.*
 !.env.example
 graphify-out/
+
+# CUA run scratch files (screenshots and results-*.json are kept)
+docs/evidence/*/state.json
+docs/evidence/*/fixtures/
+docs/evidence/*/[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*

@@ -18,6 +18,7 @@ import { BidPackagePage, BidPage } from "./pages/tools/bidding";
 import { MeetingPage } from "./pages/tools/meetings";
 import { ModelPage } from "./pages/tools/models";
 import { RfiPage, SubmittalPage } from "./pages/tools/rfis";
+import { CorrespondencePage, EquipmentPage, TmTicketPage } from "./pages/tools/project-tools";
 import { match, navigate, usePath } from "./router";
 
 const ORG_KEY = "openbuild.org";
@@ -40,6 +41,9 @@ const DETAIL: [string, (id: string) => JSX.Element][] = [
   ["meetings", (id) => <MeetingPage id={id} />],
   ["bid-packages", (id) => <BidPackagePage id={id} />],
   ["models", (id) => <ModelPage id={id} />],
+  ["correspondence", (id) => <CorrespondencePage id={id} />],
+  ["tm-tickets", (id) => <TmTicketPage id={id} />],
+  ["equipment", (id) => <EquipmentPage id={id} />],
 ];
 
 export function App() {

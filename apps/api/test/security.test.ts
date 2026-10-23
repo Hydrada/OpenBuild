@@ -53,6 +53,10 @@ beforeAll(async () => {
   const ce = (await owner.post(`${P}/change-events`, { title: "ce" })).body;
   const co = (await owner.post(`${P}/change-orders`, { contractId: k.id, title: "co", lines: [{ costCodeId: cc.id, description: "x", amount: "1" }] })).body;
   const inv = (await owner.post(`${P}/invoices`, { contractId: k.id, periodStart: "2026-10-01", periodEnd: "2026-10-31" })).body;
+  const corr = (await owner.post(`${P}/correspondence`, { kind: "notice", subject: "n" })).body;
+  const dc = (await owner.post(`${P}/direct-costs`, { kind: "expense", costDate: "2026-10-01", description: "d", costCodeId: cc.id, amount: "1" })).body;
+  const tm = (await owner.post(`${P}/tm-tickets`, { workDate: "2026-10-01", description: "t" })).body;
+  const eq = (await owner.post(`${P}/equipment`, { name: "Crane" })).body;
   const field = (await owner.post(`/api/orgs/${orgId}/custom-fields`, { entityType: "rfi", key: "k", label: "K", type: "text" })).body;
   const key = (await owner.post(`/api/orgs/${orgId}/api-keys`, { name: "k" })).body;
   ids = {
@@ -60,7 +64,7 @@ beforeAll(async () => {
     "/drawings/": drawing.drawingId, "/drawing-revisions/": dRow.revisions[0].id, "/files/": dRow.revisions[0].file_id,
     "/documents/": doc.id, "/approval-steps/": step.id, "/rfis/": rfi.id, "/submittals/": sub.id, "/daily-logs/": log.id,
     "/inspections/": ins.id, "/punch-items/": punch.id, "/observations/": obs.id, "/incidents/": inc.id, "/contracts/": k.id,
-    "/change-events/": ce.id, "/change-orders/": co.id, "/invoices/": inv.id, "/tasks/": randomUUID(),
+    "/change-events/": ce.id, "/correspondence/": corr.id, "/direct-costs/": dc.id, "/tm-tickets/": tm.id, "/equipment/": eq.id, "/change-orders/": co.id, "/invoices/": inv.id, "/tasks/": randomUUID(),
     "custom-fields/": field.id, "api-keys/": key.id, "/me/sessions/": randomUUID(),
   };
   outsider = (await registerOwner(app, "outsider@example.com")).client;

@@ -20,6 +20,7 @@ Sources:
 | Docs | RFIs | **Done** | Numbering, ball-in-court, due/overdue, drawing/spec links, official answer, cost/schedule impact, attachments |
 | Docs | Submittals | **Done** | Types, spec link, ordered reviewers, approve / as noted / revise & resubmit / reject, revisions |
 | Docs | Markup / PDF editing | **Via adapters** | Scoped links for OpenDraft and the Acrobat alternative; markups stored per revision |
+| Core | Correspondence | **Done** | Transmittals, notices, instructions, letters and memos numbered per type (TR-001…), recipients with read acknowledgement, private items, drafts, attachments, comments, close/reopen; subcontractors see only items addressed to them |
 | Core | Meetings | **Done** | Agenda, attendees, minutes, action items with owners and due dates, publish + notify |
 | Docs | Models (BIM) | **Done** | IFC versions with element counts/changes, in-browser 3D viewer (web-ifc + three.js), clash detection between models (bounding-box candidates confirmed by exact triangle intersection and containment, plus clearance/soft clashes measured by surface distance) with stored runs and red highlighting in 3D |
 | Field | Daily log | **Done** | Weather, temps, work, delays, visitors, manpower (decimal hours), photos, sign-off lock |
@@ -28,8 +29,11 @@ Sources:
 | Field | Observations, incidents | **Done** | Severity, assignee, resolution; OSHA recordable/lost time, investigation, corrective action required to close |
 | Field | Photos | **Done** | Library, camera capture on mobile, attach to records |
 | Field | Offline capture | **Done** | Creates (replay-safe `clientId`), queued edits to daily logs, inspection results and punch status, and photos held in IndexedDB until reconnect |
+| Field | T&M tickets | **Done** | Labor/material/equipment lines (qty × rate, half-even), field signature, submit → approve/reject, one-click change event per cost code, signed-ticket attachments |
+| Field | Equipment | **Done** | Register (owned/rented/sub), status, daily operated/idle hours by cost code with a 24 h/day cap, operating cost at the hourly rate |
 | Field | Timesheets | **Done (basic)** | Self-logged hours by cost code (incl. subcontractors), 24 h/day guard, manager approval, no self-approval; no payroll export |
 | Financials | Budget, cost codes | **Done** | CSV import, lock, transfers, revised/committed/pending/exposure/cost-to-date/EAC/over-under, CSV export |
+| Financials | Direct costs | **Done** | Expenses, vendor invoices, payroll and non-commitment sub invoices by cost code; approval by someone other than the author; approved costs feed the budget's direct costs and estimate at completion |
 | Financials | Prime contracts, commitments | **Done** | Prime, subcontracts, POs, schedule of values, retainage |
 | Financials | Change events, change orders | **Done** | Estimates, exposure, approval routing, deductive COs, void |
 | Financials | Invoices / pay applications | **Done** | AIA G702/G703-style math, retainage, previous certificates, over-billing guard, G703 CSV |

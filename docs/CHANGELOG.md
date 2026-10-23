@@ -10,6 +10,8 @@
 - Preconstruction: bid packages, bidder portal with planroom documents, leveling and award.
 - Scheduling: multiple predecessors (FS/SS/FF/SF) with lag; Microsoft Project XML import.
 - Bidder directory with prequalification.
+- Correspondence (transmittals, notices, instructions, letters, memos) with acknowledgements.
+- Direct costs that feed the budget; T&M tickets that become change events; equipment register and usage log.
 - Working calendar per project (weekdays and holidays) used by the critical path.
 - Resources with daily capacity and resource levelling, with optional activity splitting; an activity can need several resources at once.
 - Models: IFC register with version deltas, in-browser 3D viewer and exact-geometry clash detection between models, including clearance (soft) clashes.

@@ -923,4 +923,100 @@ ALTER TABLE schedule_items DROP COLUMN resource_id;
 ALTER TABLE schedule_items DROP COLUMN resource_units;
 `,
   },
+  {
+    id: "0020_project_tools",
+    sql: /* sql */ `
+-- Correspondence (transmittals, notices, instructions, letters), direct costs, T&M tickets, equipment.
+CREATE TABLE correspondence (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  kind         text NOT NULL CHECK (kind IN ('transmittal','notice','instruction','letter','memo')),
+  number       int NOT NULL,
+  subject      text NOT NULL,
+  body         text,
+  status       text NOT NULL DEFAULT 'open' CHECK (status IN ('draft','open','closed')),
+  due_date     date,
+  private      boolean NOT NULL DEFAULT false,
+  created_by   uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  closed_at    timestamptz,
+  UNIQUE (project_id, kind, number)
+);
+CREATE TABLE correspondence_recipients (
+  correspondence_id uuid NOT NULL REFERENCES correspondence(id) ON DELETE CASCADE,
+  user_id           uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  acknowledged_at   timestamptz,
+  PRIMARY KEY (correspondence_id, user_id)
+);
+
+CREATE TABLE direct_costs (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id    uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  kind          text NOT NULL CHECK (kind IN ('invoice','expense','payroll','subcontractor_invoice')),
+  cost_date     date NOT NULL,
+  vendor        text,
+  reference     text,
+  description   text NOT NULL,
+  cost_code_id  uuid NOT NULL REFERENCES cost_codes(id) ON DELETE RESTRICT,
+  amount        numeric(14,2) NOT NULL,
+  status        text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  created_by    uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX direct_costs_project ON direct_costs (project_id, cost_code_id);
+
+CREATE TABLE tm_tickets (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id      uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  number          int NOT NULL,
+  work_date       date NOT NULL,
+  description     text NOT NULL,
+  company         text,
+  status          text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','submitted','approved','rejected')),
+  signed_by       text,
+  signed_at       timestamptz,
+  change_event_id uuid REFERENCES change_events(id) ON DELETE SET NULL,
+  created_by      uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, number)
+);
+CREATE TABLE tm_ticket_lines (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_id    uuid NOT NULL REFERENCES tm_tickets(id) ON DELETE CASCADE,
+  seq          int NOT NULL,
+  category     text NOT NULL CHECK (category IN ('labor','material','equipment')),
+  description  text NOT NULL,
+  quantity     numeric(12,2) NOT NULL CHECK (quantity >= 0),
+  unit         text,
+  rate         numeric(14,2) NOT NULL CHECK (rate >= 0),
+  cost_code_id uuid REFERENCES cost_codes(id) ON DELETE SET NULL
+);
+
+CREATE TABLE equipment (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name         text NOT NULL,
+  category     text,
+  ownership    text NOT NULL DEFAULT 'owned' CHECK (ownership IN ('owned','rented','subcontractor')),
+  identifier   text,
+  hourly_rate  numeric(14,2) NOT NULL DEFAULT 0 CHECK (hourly_rate >= 0),
+  status       text NOT NULL DEFAULT 'on_site' CHECK (status IN ('on_site','off_site','down')),
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (project_id, name)
+);
+CREATE TABLE equipment_logs (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  equipment_id  uuid NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+  log_date      date NOT NULL,
+  hours_operated numeric(5,2) NOT NULL DEFAULT 0 CHECK (hours_operated BETWEEN 0 AND 24),
+  hours_idle    numeric(5,2) NOT NULL DEFAULT 0 CHECK (hours_idle BETWEEN 0 AND 24),
+  cost_code_id  uuid REFERENCES cost_codes(id) ON DELETE SET NULL,
+  notes         text,
+  created_by    uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  CHECK (hours_operated + hours_idle <= 24)
+);
+CREATE INDEX equipment_logs_by_day ON equipment_logs (equipment_id, log_date);
+`,
+  },
 ];

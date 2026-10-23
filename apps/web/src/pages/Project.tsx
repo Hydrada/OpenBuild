@@ -11,6 +11,7 @@ import { BiddingTool } from "./tools/bidding";
 import { MeetingsTool, TimesheetsTool } from "./tools/meetings";
 import { ModelsTool } from "./tools/models";
 import { ScheduleTool } from "./tools/schedule";
+import { CorrespondenceTool, DirectCostsTool, EquipmentTool, TmTicketsTool } from "./tools/project-tools";
 import { BudgetTool, ChangeEventsTool, ChangeOrdersTool, ContractsTool, InvoicesTool } from "./tools/financials";
 
 export interface ProjectInfo { id: string; org_id: string; name: string; code: string | null; address: string | null; status: string; start_date: string | null; end_date: string | null; myRole: string }
@@ -21,6 +22,7 @@ const TOOLS: Tool[] = [
   { id: "home", label: "Home", group: "Project", render: (p) => <Home project={p} /> },
   { id: "schedule", label: "Schedule", group: "Project", render: (p) => <ScheduleTool project={p} /> },
   { id: "meetings", label: "Meetings", group: "Project", render: (p) => <MeetingsTool project={p} /> },
+  { id: "correspondence", label: "Correspondence", group: "Project", external: true, render: (p) => <CorrespondenceTool project={p} /> },
   { id: "team", label: "Team", group: "Project", render: (p) => <Team project={p} /> },
   { id: "activity", label: "Activity", group: "Project", render: (p) => <Activity projectId={p.id} /> },
   { id: "drawings", label: "Drawings", group: "Documents", external: true, render: (p) => <DrawingsTool project={p} /> },
@@ -36,12 +38,15 @@ const TOOLS: Tool[] = [
   { id: "incidents", label: "Incidents", group: "Field", render: (p) => <IncidentsTool project={p} /> },
   { id: "photos", label: "Photos", group: "Field", render: (p) => <PhotosTool project={p} /> },
   { id: "timesheets", label: "Timesheets", group: "Field", external: true, render: (p) => <TimesheetsTool project={p} /> },
+  { id: "tm-tickets", label: "T&M tickets", group: "Field", render: (p) => <TmTicketsTool project={p} /> },
+  { id: "equipment", label: "Equipment", group: "Field", render: (p) => <EquipmentTool project={p} /> },
   { id: "bidding", label: "Bidding", group: "Financials", render: (p) => <BiddingTool project={p} /> },
   { id: "budget", label: "Budget", group: "Financials", render: (p) => <BudgetTool project={p} /> },
   { id: "contracts", label: "Contracts", group: "Financials", render: (p) => <ContractsTool project={p} /> },
   { id: "change-events", label: "Change events", group: "Financials", render: (p) => <ChangeEventsTool project={p} /> },
   { id: "change-orders", label: "Change orders", group: "Financials", render: (p) => <ChangeOrdersTool project={p} /> },
   { id: "invoices", label: "Invoices", group: "Financials", render: (p) => <InvoicesTool project={p} /> },
+  { id: "direct-costs", label: "Direct costs", group: "Financials", render: (p) => <DirectCostsTool project={p} /> },
   { id: "settings", label: "Settings", group: "Project", render: (p, reload) => <Settings project={p} onSaved={reload} /> },
 ];
 
