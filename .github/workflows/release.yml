@@ -34,4 +34,5 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" openbuild-${GITHUB_REF_NAME}.tar.gz openbuild-${GITHUB_REF_NAME}.tar.gz.sha256 --title "OpenBuild $GITHUB_REF_NAME" --notes-file docs/CHANGELOG.md
+        shell: bash
+        run: gh release create "$GITHUB_REF_NAME" openbuild-${GITHUB_REF_NAME}.tar.gz openbuild-${GITHUB_REF_NAME}.tar.gz.sha256 --title "OpenBuild $GITHUB_REF_NAME" --notes-file docs/CHANGELOG.md $([[ "$GITHUB_REF_NAME" == v0.* ]] && echo --prerelease)

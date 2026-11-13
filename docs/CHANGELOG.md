@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 — 2026-10-22 (unreleased)
+## 0.2.0 — 2026-11-13
 - Project management: meetings with minutes and action items; schedule with critical path and float, with activities, milestones, dependencies, bar chart and dashboard milestones.
 - Documents: drawings with revisions and markup sets, documents with versions and approvals, specifications, RFIs, submittals.
 - Field: timesheets with manager approval; daily logs with manpower, inspections from templates, punch list, observations, incidents, photo library, offline capture.
