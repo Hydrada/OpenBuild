@@ -1,6 +1,8 @@
-# Feature-parity matrix (Procore → OpenBuild)
+# Feature matrix
 
-**This is a tracking matrix, not a parity claim.** Procore's tool list comes from public sources (cited) and may differ by subscription.
+**This is a tracking matrix, not a parity claim.** It maps common construction-management tools to what OpenBuild has built. The reference
+tool list is taken from public Procore materials (cited) and may differ by subscription. Procore is a trademark of Procore Technologies, Inc.;
+OpenBuild is independent and not affiliated.
 "Done" means passing API tests **and** a verified browser workflow (Playwright and/or CUA Driver). Depth is narrower than Procore's in most areas.
 
 Sources:

@@ -1,6 +1,6 @@
 # Known limitations (0.2.0, 2026-10-22)
 
-- **Not Procore parity.** See FEATURE_PARITY.md for what is and is not built (BIM clash containment checks assume closed, roughly convex elements; clearance distances are measured between surfaces near the overlap region).
+- **Not feature-complete.** See FEATURE_PARITY.md for what is and is not built (BIM clash containment checks assume closed, roughly convex elements; clearance distances are measured between surfaces near the overlap region).
 - **SSO** supports OpenID Connect and SAML 2.0, each tested against a simulated identity provider, not yet a live tenant. Users must be invited first; SAML replay protection is per process. Password + optional TOTP two-factor with recovery codes remains available.
 - **Login rate limiting is in-memory**, per process — run one app instance per database.
 - **S3 storage** is supported (AWS S3, MinIO, R2, Backblaze) and tested against an S3-compatible test server, not yet against a live AWS account. With S3, the backup CLI copies the database only; use bucket versioning/replication for files.

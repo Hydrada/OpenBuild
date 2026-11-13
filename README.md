@@ -1,10 +1,13 @@
 # OpenBuild
 
 Open-source, self-hostable construction project management: drawings, RFIs, submittals, daily logs, inspections, punch lists,
-budgets, change orders and pay applications, with subcontractor access. An independent alternative to Procore — not a clone and
-not at feature parity (see the [sourced feature matrix](docs/FEATURE_PARITY.md)).
+budgets, change orders and pay applications, with subcontractor access. It runs as a single Node.js process with an embedded
+database, or on PostgreSQL for a shared server. See the [feature matrix](docs/FEATURE_PARITY.md) for what is and is not built.
 
-**Status: 0.2.0 (unreleased).** All six roadmap milestones pass their acceptance tests; read the [known limitations](docs/KNOWN_LIMITATIONS.md).
+## Status
+**Pre-release: 0.2.0.** All six roadmap milestones pass their acceptance tests ([roadmap](docs/ROADMAP.md)). Some features are
+verified only against simulated services (for example SSO identity providers and S3 storage), and login rate limiting assumes a
+single app instance. Read the [known limitations](docs/KNOWN_LIMITATIONS.md) before relying on it.
 
 ## What it does
 - **Project management:** companies, projects, roles (owner/admin/member; manager/contributor/viewer/subcontractor), invitations, tasks, schedule and milestones, meetings, dashboard, activity.
@@ -18,6 +21,8 @@ not at feature parity (see the [sourced feature matrix](docs/FEATURE_PARITY.md))
 Requires Node.js 22+.
 
 ```sh
+git clone https://github.com/Hydrada/OpenBuild.git
+cd OpenBuild
 npm install
 npm run build
 npm start            # http://127.0.0.1:3000 — embedded PostgreSQL in ./data, no database server needed
@@ -41,4 +46,6 @@ Evidence from the latest GUI runs: [docs/evidence](docs/evidence).
 [Known limitations](docs/KNOWN_LIMITATIONS.md) · [Changelog](docs/CHANGELOG.md)
 
 ## License
-MIT
+MIT. See [LICENSE](LICENSE).
+
+Procore is a trademark of Procore Technologies, Inc. OpenBuild is an independent project and is not affiliated with or endorsed by Procore.
