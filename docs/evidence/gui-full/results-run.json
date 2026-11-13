@@ -97,7 +97,7 @@
   {
     "name": "export budget CSV",
     "ok": true,
-    "detail": "C:\\Users\\Hydra\\Documents\\Projects\\openbuild-procore-alternative\\docs\\evidence\\gui-full\\6f58f425-4e52-4dfd-8877-3415ef3362f5"
+    "detail": "docs/evidence/gui-full/budget-export.csv"
   },
   {
     "name": "upload BIM model and read its elements",
