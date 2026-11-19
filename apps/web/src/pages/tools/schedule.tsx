@@ -121,7 +121,7 @@ export function ScheduleTool({ project }: { project: ProjectInfo }) {
             <div className="table-wrap">
               <table className="table">
                 <caption className="sr-only">Schedule activities</caption>
-                <thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>%</th><th>Early start</th><th>Float (working days)</th><th>Depends on</th><th>Responsible</th><th>Flags</th>{writable && <th />}</tr></thead>
+                <thead><tr><th>Activity</th><th>Start</th><th>Finish</th><th>%</th><th>Early start</th><th>Float (working days)</th><th>Depends on</th><th>Responsible</th><th>Flags</th>{writable && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
                 <tbody>
                   {items.map((i) => editing === i.id ? (
                     <tr key={i.id}><td colSpan={writable ? 10 : 9}>

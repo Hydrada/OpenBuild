@@ -16,6 +16,8 @@ button.danger:not(.link) { border-color: #f1b2ab; color: var(--warn); }
 .num-input { width: 9rem; text-align: right; font-variant-numeric: tabular-nums; }
 .notice { margin: .5rem 0; }
 .check { display: flex; align-items: center; gap: .4rem; font-size: .9rem; color: var(--ink); }
+/* WCAG 2.2 target size: checkboxes and radios are at least 24x24 CSS px. */
+input[type=checkbox], input[type=radio] { width: 1.5rem; height: 1.5rem; flex: none; }
 .field textarea { font: inherit; border: 1px solid #cfd4dc; border-radius: 6px; padding: .45rem .6rem; resize: vertical; color: var(--ink); }
 .field select[multiple] { padding: .2rem; }
 .form-grid.compact { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }

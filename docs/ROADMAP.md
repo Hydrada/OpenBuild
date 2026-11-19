@@ -14,6 +14,6 @@ migrations work on fresh and existing databases, docs and limitations are update
 
 Test totals (2026-11-13): 156 API tests, 52 Playwright tests, 36 CUA Driver GUI checks, install/recovery drill, load test.
 
-## Next (not started)
-PostgreSQL load test;
-multi-instance rate limiting; multiple resources per activity.
+## Next
+- Manual screen-reader pass (NVDA/Narrator) of the main workflows (#24).
+- Live identity-provider (#25) and live AWS S3 (#26) verification; both need accounts from the owner.

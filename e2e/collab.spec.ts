@@ -63,7 +63,7 @@ test("password reset link and account security", async ({ browser }) => {
   await expect(owner.getByText("Password changed.")).toBeVisible();
 });
 
-test("key screens have no serious accessibility violations", async ({ browser }) => {
+test("key screens have no accessibility violations (WCAG 2.2 AA + best practice, any impact)", async ({ browser }) => {
   const w = await world(browser);
   const { owner } = w;
   await api(owner).post(`/projects/${w.projectId}/rfis`, { subject: "a11y", question: "q" });
@@ -79,15 +79,15 @@ test("key screens have no serious accessibility violations", async ({ browser })
   for (const path of pages) {
     await owner.goto(path);
     await owner.waitForLoadState("networkidle");
-    const results = await new AxeBuilder({ page: owner }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
-    for (const v of results.violations.filter((x) => x.impact === "serious" || x.impact === "critical")) {
+    const results = await new AxeBuilder({ page: owner }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"]).analyze();
+    for (const v of results.violations) {
       failures.push(`${path}: ${v.id} (${v.impact}) — ${v.nodes.slice(0, 2).map((n) => n.target.join(" ")).join(", ")}`);
     }
   }
   const anon = await (await browser.newContext()).newPage();
   await anon.goto("/");
-  const login = await new AxeBuilder({ page: anon }).withTags(["wcag2a", "wcag2aa"]).analyze();
-  failures.push(...login.violations.filter((x) => x.impact === "serious" || x.impact === "critical").map((v) => `login: ${v.id}`));
+  const login = await new AxeBuilder({ page: anon }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"]).analyze();
+  failures.push(...login.violations.map((v) => `login: ${v.id} (${v.impact})`));
   expect(failures).toEqual([]);
 });
 

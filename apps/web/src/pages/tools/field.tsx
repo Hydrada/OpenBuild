@@ -104,7 +104,7 @@ export function DailyLogPage({ id }: { id: string }) {
         {(manpower.length > 0 || editable) && (
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Company</th><th>Trade</th><th>Workers</th><th>Hours</th><th>Notes</th>{editable && <th />}</tr></thead>
+              <thead><tr><th>Company</th><th>Trade</th><th>Workers</th><th>Hours</th><th>Notes</th>{editable && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
               <tbody>
                 {manpower.map((m: any, i: number) => (
                   <tr key={i}>

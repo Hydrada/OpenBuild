@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+- Several app instances can now share one PostgreSQL database: sign-in rate limiting and SAML replay protection are stored in the database instead of process memory.
+- Optional virus scanning of uploads with ClamAV (`OPENBUILD_CLAMD`, Docker Compose profile `scan`); infected files are refused, and uploads pause if the scanner is down unless configured to fail open.
+- PostgreSQL load test (one instance, then two instances on one database) runs in CI.
+- Accessibility: WCAG 2.2 target size for checkboxes, labelled action columns, unique landmarks; forms and confirmations now take keyboard focus, close with Escape and return focus; visible focus on text areas and summaries. The automated scan now fails on any WCAG 2.2 AA or best-practice violation.
+
 ## 0.2.0 — 2026-11-13
 - Project management: meetings with minutes and action items; schedule with critical path and float, with activities, milestones, dependencies, bar chart and dashboard milestones.
 - Documents: drawings with revisions and markup sets, documents with versions and approvals, specifications, RFIs, submittals.

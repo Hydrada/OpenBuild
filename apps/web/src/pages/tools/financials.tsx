@@ -20,7 +20,7 @@ function LinesEditor({ codes, lines, onChange, amountLabel = "Amount", allowNega
     <div className="span-all">
       <div className="table-wrap">
         <table className="table lines">
-          <thead><tr><th>Cost code</th><th>Description</th><th>{amountLabel}</th><th /></tr></thead>
+          <thead><tr><th>Cost code</th><th>Description</th><th>{amountLabel}</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {lines.map((l, i) => (
               <tr key={i}>
@@ -103,7 +103,7 @@ export function BudgetTool({ project }: { project: ProjectInfo }) {
           <div className="table-wrap">
             <table className="table budget">
               <caption className="sr-only">Budget by cost code</caption>
-              <thead><tr><th scope="col">Cost code</th>{cols.map(([, l]) => <th key={l} scope="col" className="num">{l}</th>)}<th scope="col" className="num">Forecast to complete</th>{manager && <th />}</tr></thead>
+              <thead><tr><th scope="col">Cost code</th>{cols.map(([, l]) => <th key={l} scope="col" className="num">{l}</th>)}<th scope="col" className="num">Forecast to complete</th>{manager && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
               <tbody>
                 {b.rows.map((r: any) => {
                   const e = edit[r.cost_code_id];

@@ -47,7 +47,7 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: .85em; }
 
 button, input, select { font: inherit; }
 input, select { border: 1px solid #cfd4dc; border-radius: 6px; padding: .45rem .6rem; background: #fff; color: var(--ink); min-width: 0; }
-input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:not([tabindex="-1"]):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button { border: 1px solid #cfd4dc; background: #fff; border-radius: 6px; padding: .45rem .9rem; cursor: pointer; }
 button:disabled { opacity: .6; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }

@@ -175,7 +175,7 @@ function TmLinesEditor({ lines, onChange, codeOptions }: { lines: TmLine[]; onCh
     <div className="span-all">
       <div className="table-wrap">
         <table className="table lines">
-          <thead><tr><th>Type</th><th>Description</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Cost code</th><th /></tr></thead>
+          <thead><tr><th>Type</th><th>Description</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Cost code</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {lines.map((l, i) => (
               <tr key={i}>

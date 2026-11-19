@@ -74,7 +74,7 @@ export function EstimatePage({ id }: { id: string }) {
         <div className="table-wrap">
           <table className="table lines">
             <caption className="sr-only">Estimate lines</caption>
-            <thead><tr><th>Cost code</th><th>Description</th><th>Type</th><th>Qty</th><th>Unit</th><th>Unit cost</th><th className="num">Amount</th>{editable && <th />}</tr></thead>
+            <thead><tr><th>Cost code</th><th>Description</th><th>Type</th><th>Qty</th><th>Unit</th><th>Unit cost</th><th className="num">Amount</th>{editable && <th scope="col"><span className="sr-only">Actions</span></th>}</tr></thead>
             <tbody>
               {cur.map((l, i) => editable ? (
                 <tr key={i}>

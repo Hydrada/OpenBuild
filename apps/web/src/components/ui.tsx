@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { fmtMoney, label } from "../api";
 import { useAction } from "../hooks";
 import { navigate } from "../router";
@@ -80,12 +80,12 @@ export function DataTable<T extends { id?: string }>({ rows, columns, href, empt
     <div className="table-wrap">
       <table className="table">
         {caption && <caption className="sr-only">{caption}</caption>}
-        <thead><tr>{columns.map((c) => <th key={c.label} scope="col">{c.label}</th>)}</tr></thead>
+        <thead><tr>{columns.map((c, i) => <th key={c.label || `col${i}`} scope="col">{c.label || <span className="sr-only">Actions</span>}</th>)}</tr></thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={r.id ?? i} className={href ? "clickable" : ""} onClick={href ? (e) => { if ((e.target as HTMLElement).closest("a,button,select,input")) return; navigate(href(r)); } : undefined}>
               {columns.map((c, j) => (
-                <td key={c.label} className={c.className}>
+                <td key={c.label || `col${j}`} className={c.className}>
                   {j === 0 && href ? <Link to={href(r)}>{c.render(r)}</Link> : c.render(r)}
                 </td>
               ))}
@@ -192,9 +192,26 @@ export function Form({ fields, initial = {}, submitLabel, onSubmit, onCancel, re
 }
 
 /** "New X" button that expands into a form. */
+/**
+ * A button that turns into a form. Keyboard and screen-reader users land in the form's first field when it opens,
+ * and back on the button when it closes, instead of being dropped at the top of the page.
+ */
 export function Creator({ label: text, children }: { label: string; children: (close: () => void) => ReactNode }) {
   const [open, setOpen] = useState(false);
-  return open ? <>{children(() => setOpen(false))}</> : <button className="primary" onClick={() => setOpen(true)}>{text}</button>;
+  const panel = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open) {
+      panel.current?.querySelector<HTMLElement>("input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])")?.focus();
+    } else if (wasOpen.current) {
+      trigger.current?.focus();
+    }
+    wasOpen.current = open;
+  }, [open]);
+  return open
+    ? <div ref={panel} className="creator-panel" onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } }}>{children(() => setOpen(false))}</div>
+    : <button ref={trigger} className="primary" onClick={() => setOpen(true)}>{text}</button>;
 }
 
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string }[]; value: T; onChange: (t: T) => void }) {
@@ -221,9 +238,16 @@ export function KeyValues({ items }: { items: [string, ReactNode][] }) {
 export function ActionButton({ children, onClick, className, confirm: confirmText }: { children: ReactNode; onClick: () => Promise<unknown>; className?: string; confirm?: string }) {
   const { busy, error, run } = useAction();
   const [asking, setAsking] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const wasAsking = useRef(false);
+  // When the confirmation closes, put focus back on the button that opened it (if it is still on the page).
+  useEffect(() => {
+    if (!asking && wasAsking.current) trigger.current?.focus();
+    wasAsking.current = asking;
+  }, [asking]);
   if (asking) {
     return (
-      <span className="action-button confirming" role="group" aria-label="Confirm action">
+      <span className="action-button confirming" role="group" aria-label="Confirm action" onKeyDown={(e) => { if (e.key === "Escape" && !busy) { e.stopPropagation(); setAsking(false); } }}>
         <span className="confirm-text">{confirmText}</span>
         <span className="confirm-buttons">
           <button className={className?.includes("danger") ? "danger" : "primary"} disabled={busy} autoFocus onClick={() => run(onClick).then(() => setAsking(false))}>Confirm</button>
@@ -235,7 +259,7 @@ export function ActionButton({ children, onClick, className, confirm: confirmTex
   }
   return (
     <span className="action-button">
-      <button className={className} disabled={busy} onClick={() => (confirmText ? setAsking(true) : run(onClick))}>{children}</button>
+      <button ref={trigger} className={className} disabled={busy} onClick={() => (confirmText ? setAsking(true) : run(onClick))}>{children}</button>
       <ErrorText error={error} />
     </span>
   );

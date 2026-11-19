@@ -9,7 +9,7 @@ test("cash flow: spread a cost code front-loaded and see the monthly forecast", 
   const cc = (await api(owner).get(`/projects/${w.projectId}/cost-codes`))[0].id;
   await owner.request.put(`/api/projects/${w.projectId}/budget/lines/${cc}`, { headers: { "x-openbuild-csrf": "1" }, data: { originalAmount: "90000.00" } });
   await openProject(owner, w, "Cash flow");
-  const cf = owner.getByRole("region", { name: "Cash flow" });
+  const cf = owner.getByRole("region", { name: "Cash flow forecast" });
   await expect(cf.getByRole("table", { name: "Monthly cash flow" })).toContainText("$30,000.00");
   await cf.getByRole("row", { name: /03-300/ }).getByRole("button", { name: "Change" }).click();
   await cf.getByLabel("Curve for 03-300").selectOption("front");

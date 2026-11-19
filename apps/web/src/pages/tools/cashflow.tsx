@@ -34,7 +34,7 @@ export function CashFlowSection({ projectId, manager }: { projectId: string; man
   if (!c.data) return <Loading />;
   const d = c.data;
   return (
-    <section className="card" aria-label="Cash flow">
+    <section className="card" aria-label="Cash flow forecast">
       <h2>Cash flow <a className="button small" href={`/api/projects/${projectId}/cash-flow.csv`}>Export CSV</a></h2>
       <p className="muted small">Each cost code's estimate at completion is spread over its months (project dates unless set). Actuals are approved direct costs and approved subcontractor invoices. <span className="swatch" style={{ background: "#2563eb" }} /> forecast <span className="swatch" style={{ background: "#c2410c" }} /> actual (cumulative)</p>
       {d.totals.length > 0 && <Chart totals={d.totals} />}
