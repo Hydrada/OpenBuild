@@ -91,4 +91,35 @@ describe("SAML 2.0 single sign-on", () => {
     const open = await post(samlResponse("pat@acme.test"), "//evil.example");
     expect(open.headers.location).toBe("/");
   });
+
+  it("refuses a replay sent to a second app instance sharing the database", async () => {
+    const second = await buildApp({
+      db, storage: new LocalStorage(mkdtempSync(join(tmpdir(), "ob-saml2-"))), allowSignup: true, secureCookies: false, notify: createNotifier(), documentTools: [],
+      baseUrl: BASE, saml: { entryPoint: "https://idp.test/sso", idpCert: IDP_CERT, name: "Entra ID", baseUrl: BASE },
+    });
+    try {
+      const once = samlResponse("pat@acme.test");
+      expect((await post(once)).cookies.find((c) => c.name === "ob_session")).toBeDefined();
+      const replay = await second.inject({ method: "POST", url: "/api/auth/saml/acs", payload: new URLSearchParams({ SAMLResponse: once, RelayState: "/" }).toString(), headers: { "content-type": "application/x-www-form-urlencoded" } });
+      rejected(replay, /already used/);
+    } finally {
+      await second.close();
+    }
+  });
+
+  it("shares the sign-in rate limit across instances", async () => {
+    const second = await buildApp({ db, storage: new LocalStorage(mkdtempSync(join(tmpdir(), "ob-rl-"))), allowSignup: true, secureCookies: false, notify: createNotifier(), documentTools: [] });
+    try {
+      const login = (a: typeof app) => a.inject({ method: "POST", url: "/api/auth/login", payload: { email: "admin@acme.test", password: "wrong password here" }, headers: { "x-openbuild-csrf": "1" } });
+      const codes: number[] = [];
+      for (let i = 0; i < 10; i++) codes.push((await login(i % 2 ? second : app)).statusCode);
+      expect(codes.every((c) => c === 401)).toBe(true);
+      expect((await login(second)).statusCode).toBe(429);
+      expect((await login(app)).statusCode).toBe(429);
+      // Keys are hashed: no raw email is stored.
+      expect((await db.query<{ key: string }>("SELECT key FROM auth_rate_limits")).every((r) => /^[0-9a-f]{64}$/.test(r.key))).toBe(true);
+    } finally {
+      await second.close();
+    }
+  });
 });

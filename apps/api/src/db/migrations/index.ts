@@ -1421,4 +1421,21 @@ CREATE TABLE takeoff_items (
 CREATE INDEX takeoff_items_project ON takeoff_items (project_id, revision_id);
 `,
   },
+  {
+    id: "0034_shared_auth_state",
+    sql: /* sql */ `
+-- Shared (multi-instance) login rate limiting and SAML replay protection, previously per-process memory.
+CREATE TABLE auth_rate_limits (
+  key       text PRIMARY KEY,   -- sha256 of the limiter name and subject (never the raw email)
+  count     int NOT NULL,
+  reset_at  timestamptz NOT NULL
+);
+CREATE INDEX auth_rate_limits_reset ON auth_rate_limits (reset_at);
+CREATE TABLE saml_used_assertions (
+  assertion_id text PRIMARY KEY,
+  expires_at   timestamptz NOT NULL
+);
+CREATE INDEX saml_used_assertions_expiry ON saml_used_assertions (expires_at);
+`,
+  },
 ];

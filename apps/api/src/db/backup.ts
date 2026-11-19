@@ -3,7 +3,7 @@ import { migrations } from "./migrations/index.js";
 
 /** Tables in foreign-key order (parents first). Every application table must be listed. */
 export const TABLE_ORDER = [
-  "users", "organizations", "org_memberships", "sessions", "oidc_states", "password_resets", "api_keys",
+  "users", "organizations", "org_memberships", "sessions", "oidc_states", "password_resets", "api_keys", "auth_rate_limits", "saml_used_assertions",
   "workers", "projects", "project_holidays", "permission_templates", "project_memberships", "invitations", "tasks",
   "files", "attachments", "photo_albums", "photo_meta", "drawings", "drawing_revisions", "markup_sets", "drawing_annotations", "takeoff_scales", "takeoff_items", "tool_tokens",
   "folders", "documents", "document_versions", "approval_steps", "spec_sections",

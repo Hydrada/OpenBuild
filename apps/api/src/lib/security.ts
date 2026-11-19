@@ -1,3 +1,4 @@
+import type { Queryable } from "../db/db.js";
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 
@@ -31,17 +32,24 @@ export function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-/** Fixed-window in-memory limiter; adequate for a single-node deployment. */
+/**
+ * Fixed-window limiter kept in the database, so every app instance behind a load balancer shares one count.
+ * One atomic upsert per hit: a new or expired window restarts at 1, otherwise the count goes up. Keys are hashed.
+ */
 export class RateLimiter {
-  private hits = new Map<string, { count: number; resetAt: number }>();
-  constructor(private limit: number, private windowMs: number) {}
-  hit(key: string, now = Date.now()): boolean {
-    const entry = this.hits.get(key);
-    if (!entry || entry.resetAt <= now) {
-      this.hits.set(key, { count: 1, resetAt: now + this.windowMs });
-      return true;
-    }
-    entry.count++;
-    return entry.count <= this.limit;
+  constructor(private db: Queryable, private name: string, private limit: number, private windowMs: number) {}
+  async hit(subject: string): Promise<boolean> {
+    const key = sha256(`${this.name}|${subject}`);
+    const [r] = await this.db.query<{ count: number }>(
+      `INSERT INTO auth_rate_limits (key, count, reset_at) VALUES ($1, 1, now() + make_interval(secs => $2))
+       ON CONFLICT (key) DO UPDATE SET
+         count = CASE WHEN auth_rate_limits.reset_at <= now() THEN 1 ELSE auth_rate_limits.count + 1 END,
+         reset_at = CASE WHEN auth_rate_limits.reset_at <= now() THEN EXCLUDED.reset_at ELSE auth_rate_limits.reset_at END
+       RETURNING count`,
+      [key, this.windowMs / 1000],
+    );
+    // Occasionally clear expired windows so the table stays small.
+    if (Math.random() < 0.01) await this.db.query("DELETE FROM auth_rate_limits WHERE reset_at < now()");
+    return r!.count <= this.limit;
   }
 }

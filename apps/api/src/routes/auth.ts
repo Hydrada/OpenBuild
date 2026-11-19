@@ -13,7 +13,7 @@ const name = z.string().trim().min(1).max(120);
 
 export const authRoutes = (config: AppConfig): FastifyPluginAsync => async (app) => {
   const { db } = config;
-  const loginLimiter = new RateLimiter(10, 15 * 60 * 1000);
+  const loginLimiter = new RateLimiter(config.db, "login", 10, 15 * 60 * 1000);
 
   async function startSession(q: Queryable, reply: FastifyReply, userId: string) {
     const { token, hash } = newToken();
@@ -46,7 +46,7 @@ export const authRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
 
   app.post("/auth/login", async (req, reply) => {
     const body = z.object({ email, password: z.string().max(200), code: z.string().trim().max(20).optional() }).parse(req.body);
-    if (!loginLimiter.hit(`${req.ip}|${body.email}`)) throw new HttpError(429, "Too many sign-in attempts. Try again later.");
+    if (!(await loginLimiter.hit(`${req.ip}|${body.email.toLowerCase()}`))) throw new HttpError(429, "Too many sign-in attempts. Try again later.");
     const [u] = await db.query<{ id: string; password_hash: string; disabled_at: string | null; totp_enabled: boolean; totp_secret: string | null; mfa_recovery_hashes: string[] }>(
       "SELECT id, password_hash, disabled_at, totp_enabled, totp_secret, mfa_recovery_hashes FROM users WHERE lower(email) = $1",
       [body.email],

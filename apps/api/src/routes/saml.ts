@@ -37,8 +37,6 @@ export const samlRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
     acceptedClockSkewMs: 60_000,
     identifierFormat: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
   });
-  // Replay protection: each assertion ID is accepted once while it is valid.
-  const seen = new Map<string, number>();
 
   app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_req, body, done) => {
     done(null, Object.fromEntries(new URLSearchParams(body as string)));
@@ -65,10 +63,12 @@ export const samlRoutes = (config: AppConfig): FastifyPluginAsync => async (app)
     }
     if (!profile) return fail("The sign-in response could not be verified.");
     const assertionId = String((profile as { ID?: string }).ID ?? (profile as { sessionIndex?: string }).sessionIndex ?? "");
-    const now = Date.now();
-    for (const [k, exp] of seen) if (exp < now) seen.delete(k);
-    if (assertionId && seen.has(assertionId)) return fail("This sign-in response was already used.");
-    if (assertionId) seen.set(assertionId, now + 10 * 60_000);
+    // Replay protection, shared by every instance: each assertion ID is accepted once while it could still be valid.
+    if (assertionId) {
+      await db.query("DELETE FROM saml_used_assertions WHERE expires_at < now()");
+      const fresh = await db.query("INSERT INTO saml_used_assertions (assertion_id, expires_at) VALUES ($1, now() + interval '10 minutes') ON CONFLICT DO NOTHING RETURNING assertion_id", [assertionId]);
+      if (!fresh.length) return fail("This sign-in response was already used.");
+    }
 
     const email = String((profile as { email?: string }).email ?? (profile as { mail?: string }).mail ?? (profile as { nameID?: string }).nameID ?? "").toLowerCase();
     if (!email.includes("@")) return fail("Your identity provider did not share an email address.");
