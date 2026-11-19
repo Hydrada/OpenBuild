@@ -69,6 +69,25 @@ jobs:
         env:
           DATABASE_URL: postgres://openbuild:openbuild@localhost:5432/smoke
           RESTORE_DATABASE_URL: postgres://openbuild:openbuild@localhost:5432/smoke_restore
+      - name: Load test on PostgreSQL (one instance, then two instances sharing the database)
+        run: |
+          psql -h localhost -U openbuild -c "CREATE DATABASE load"
+          export DATABASE_URL=postgres://openbuild:openbuild@localhost:5432/load NODE_ENV=production
+          OPENBUILD_STORAGE_DIR=$RUNNER_TEMP/files PORT=3301 node apps/api/dist/main.js > $RUNNER_TEMP/a.log 2>&1 &
+          OPENBUILD_STORAGE_DIR=$RUNNER_TEMP/files PORT=3302 node apps/api/dist/main.js > $RUNNER_TEMP/b.log 2>&1 &
+          for p in 3301 3302; do for i in $(seq 1 30); do curl -fs http://127.0.0.1:$p/api/health && break; sleep 1; done; done
+          echo "## One instance"; node scripts/load-test.mjs http://127.0.0.1:3301 10 | tee $RUNNER_TEMP/load-one.txt
+          echo "## Two instances at once"
+          node scripts/load-test.mjs http://127.0.0.1:3301 10 > $RUNNER_TEMP/load-a.txt & A=$!
+          node scripts/load-test.mjs http://127.0.0.1:3302 10 > $RUNNER_TEMP/load-b.txt & B=$!
+          wait $A; RA=$?; wait $B; RB=$?
+          cat $RUNNER_TEMP/load-a.txt $RUNNER_TEMP/load-b.txt
+          test $RA -eq 0 -a $RB -eq 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: postgres-load-test
+          path: ${{ runner.temp }}/*.txt
 
   docker:
     name: Docker Compose deployment
