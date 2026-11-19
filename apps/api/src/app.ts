@@ -10,6 +10,7 @@ import { toolForRoute } from "./lib/tools.js";
 import { HttpError } from "./lib/errors.js";
 import { sha256 } from "./lib/security.js";
 import type { Mailer, Notifier } from "./lib/notify.js";
+import type { Scanner } from "./lib/virus-scan.js";
 import type { OidcConfig } from "./routes/oidc.js";
 import { oidcRoutes } from "./routes/oidc.js";
 import type { SamlConfig } from "./routes/saml.js";
@@ -55,6 +56,8 @@ export interface AppConfig {
   /** External document tools (OpenDraft, the Acrobat alternative, ...). See docs/INTEGRATIONS.md. */
   documentTools: DocumentTool[];
   maxUploadBytes?: number;
+  /** Optional malware scanner run on every upload before it is stored (see lib/virus-scan.ts). */
+  virusScan?: { scan: Scanner; failOpen?: boolean };
   /** When set, invitations and reset links are also emailed. */
   mailer?: Mailer;
   /** Public URL of this server (e.g. https://build.example.com), used in emailed links. */
@@ -99,6 +102,7 @@ export const CSRF_HEADER = "x-openbuild-csrf";
 export async function buildApp(config: AppConfig) {
   const app = Fastify({ logger: config.logger ?? false, bodyLimit: 1024 * 1024 });
   await app.register(cookie);
+  app.decorate("uploadScan", config.virusScan ?? null);
   await app.register(multipart, { limits: { fileSize: config.maxUploadBytes ?? 100 * 1024 * 1024, files: 1, fields: 30 } });
 
   // Route inventory (used by the security sweep tests and docs/API.md generation).

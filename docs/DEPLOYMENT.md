@@ -85,3 +85,19 @@ On a project's Emails tool, a manager chooses **Set up inbound email** to get a 
 (`/api/inbound-email/<token>`). Configure your mail provider's inbound webhook (Mailgun routes, Postmark inbound,
 SendGrid Inbound Parse via a small mapping) to POST JSON `{ "from", "to", "cc", "subject", "text" }` there. Replies
 whose subject keeps the `[#E-n]` tag join thread n. Setting it up again replaces the secret.
+
+## Virus scanning (optional)
+
+Set `OPENBUILD_CLAMD=host:port` to scan every upload with ClamAV (clamd) before it is stored. Infected files are refused
+with the signature name. If the scanner cannot be reached, uploads are refused (HTTP 503) so nothing unscanned slips
+through; set `OPENBUILD_SCAN_FAIL_OPEN=true` to accept and log them instead. With Docker Compose:
+
+```sh
+OPENBUILD_CLAMD=clamav:3310 docker compose --profile scan up -d
+```
+
+## Running several app instances
+
+Sign-in rate limiting and SAML replay protection live in the database, so several app instances can share one
+PostgreSQL database behind a load balancer. PGlite remains single-process. Uploaded files must then be on shared
+storage (S3), not a local volume.

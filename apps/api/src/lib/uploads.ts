@@ -3,6 +3,7 @@ import type { FastifyRequest } from "fastify";
 import type { Queryable } from "../db/db.js";
 import { HttpError } from "./errors.js";
 import type { Storage } from "./storage.js";
+import type { Scanner } from "./virus-scan.js";
 
 export interface Upload {
   fields: Record<string, string>;
@@ -23,7 +24,31 @@ export async function readUpload(req: FastifyRequest): Promise<Upload> {
       fields[part.fieldname] = String(part.value ?? "");
     }
   }
+  if (file) await scanUpload(req, file);
   return { fields, file };
+}
+
+/**
+ * Runs the configured scanner. Infected files are refused (422). If the scanner cannot be reached the upload is
+ * refused too (503), unless the operator chose to fail open, in which case it is accepted and a warning is logged.
+ */
+async function scanUpload(req: FastifyRequest, file: NonNullable<Upload["file"]>) {
+  const cfg = (req.server as unknown as { uploadScan: { scan: Scanner; failOpen?: boolean } | null }).uploadScan;
+  if (!cfg) return;
+  let result;
+  try {
+    result = await cfg.scan(file.data);
+  } catch (e) {
+    if (cfg.failOpen) {
+      req.log.warn({ err: (e as Error).message, file: file.name }, "virus scan skipped: scanner unavailable");
+      return;
+    }
+    throw new HttpError(503, "Uploads are paused because the virus scanner is unavailable. Try again shortly.");
+  }
+  if (!result.clean) {
+    req.log.warn({ signature: result.signature, file: file.name }, "upload rejected: malware detected");
+    throw new HttpError(422, `This file was rejected by the virus scanner (${result.signature}).`);
+  }
 }
 
 export function sanitizeName(name: string): string {

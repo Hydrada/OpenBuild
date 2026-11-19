@@ -25,10 +25,19 @@ services:
       OPENBUILD_BASE_URL: ${OPENBUILD_BASE_URL:-}
       OPENBUILD_SMTP_URL: ${OPENBUILD_SMTP_URL:-}
       OPENBUILD_MAIL_FROM: ${OPENBUILD_MAIL_FROM:-}
+      # Virus scanning: start with `docker compose --profile scan up -d` and set OPENBUILD_CLAMD=clamav:3310.
+      OPENBUILD_CLAMD: ${OPENBUILD_CLAMD:-}
+      OPENBUILD_SCAN_FAIL_OPEN: ${OPENBUILD_SCAN_FAIL_OPEN:-false}
     volumes:
       - files:/data
     ports:
       - "${OPENBUILD_PORT:-3000}:3000"
+    restart: unless-stopped
+
+  # Optional ClamAV daemon for upload scanning (profile "scan"). First start downloads signatures (a few minutes).
+  clamav:
+    image: clamav/clamav:1.4
+    profiles: ["scan"]
     restart: unless-stopped
 
 volumes:

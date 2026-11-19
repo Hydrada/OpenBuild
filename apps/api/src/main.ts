@@ -1,3 +1,4 @@
+import { scannerFromEnv } from "./lib/virus-scan.js";
 import { fileURLToPath } from "node:url";
 import { buildApp } from "./app.js";
 import { createDb, defaultDataPath } from "./db/db.js";
@@ -31,6 +32,7 @@ const app = await buildApp({
   documentTools: env.OPENBUILD_DOC_TOOLS ? JSON.parse(env.OPENBUILD_DOC_TOOLS) : [{ id: "opendraft", name: "OpenDraft" }],
   webDist: env.OPENBUILD_WEB_DIST ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
   logger: env.NODE_ENV !== "test",
+  virusScan: (() => { const scan = scannerFromEnv(env); return scan ? { scan, failOpen: env.OPENBUILD_SCAN_FAIL_OPEN === "true" } : undefined; })(),
 });
 
 const port = Number(env.PORT ?? 3000);
