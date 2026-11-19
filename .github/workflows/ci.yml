@@ -83,6 +83,9 @@ jobs:
           wait $A; RA=$?; wait $B; RB=$?
           cat $RUNNER_TEMP/load-a.txt $RUNNER_TEMP/load-b.txt
           test $RA -eq 0 -a $RB -eq 0
+      - name: App logs from the load test
+        if: failure()
+        run: tail -n 60 $RUNNER_TEMP/a.log $RUNNER_TEMP/b.log || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
